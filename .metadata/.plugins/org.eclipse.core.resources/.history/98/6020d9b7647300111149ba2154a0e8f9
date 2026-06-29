@@ -1,0 +1,240 @@
+package com.tpfinal.batallanaval;
+
+import com.tpfinal.batallanaval.controller.*;
+
+import com.tpfinal.batallanaval.game.*;
+import com.tpfinal.batallanaval.model.GameConfig;
+import com.tpfinal.batallanaval.view.ConsoleUI;
+import com.tpfinal.batallanaval.network.*;
+
+import java.util.Scanner;
+
+import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
+import javax.swing.JButton;
+import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.SwingConstants;
+import javax.swing.border.EmptyBorder;
+import java.awt.Component;
+import java.awt.Dimension;
+
+public class App {
+    public static void main(String[] args) {
+        // Ejecutamos la UI en el hilo de despacho de eventos de Swing (Buena práctica)
+        javax.swing.SwingUtilities.invokeLater(() -> {
+            crearYMostrarMenu();
+        });
+    }
+
+    private static void crearYMostrarMenu() {
+        // 1. Crear la ventana principal (JFrame)
+        JFrame frame = new JFrame("Battleship - Menú Principal");
+        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        frame.setSize(400, 450);
+        frame.setLocationRelativeTo(null); // Centra la ventana en la pantalla
+
+        // 2. Crear el panel principal con un diseño vertical (BoxLayout) y margen (EmptyBorder)
+        JPanel mainPanel = new JPanel();
+        mainPanel.setLayout(new BoxLayout(mainPanel, BoxLayout.Y_AXIS));
+        mainPanel.setBorder(new EmptyBorder(20, 30, 20, 30));
+
+        // 3. Título del menú (Reemplaza al System.out)
+        JLabel titulo = new JLabel("=== BATTLESHIP MAIN MENU ===");
+        titulo.setAlignmentX(Component.CENTER_ALIGNMENT);
+        titulo.setFont(titulo.getFont().deriveFont(16.0f)); // Un poco más grande
+        mainPanel.add(titulo);
+        
+        // Espacio rígido entre el título y los botones
+        mainPanel.add(Box.createRigidArea(new Dimension(0, 30)));
+
+        // 4. Crear los botones para cada modo de juego
+        JButton btnLocalPvP = crearBotonEstructurado("1. Humano vs Humano (Local)");
+        JButton btnLocalIA = crearBotonEstructurado("2. Humano vs IA (Local)");
+        JButton btnHost = crearBotonEstructurado("3. Crear Partida en Red (Host)");
+        JButton btnClient = crearBotonEstructurado("4. Unirse a Partida en Red (Cliente)");
+
+        // 5. Asignar las acciones a cada botón (Reemplaza al Scanner)
+        btnLocalPvP.addActionListener(e -> {
+            frame.dispose(); // Cierra el menú al elegir una opción
+            iniciarModoLocalPvP();
+        });
+
+        btnLocalIA.addActionListener(e -> {
+            frame.dispose();
+            iniciarModoLocalIA();
+        });
+
+        btnHost.addActionListener(e -> {
+            frame.dispose();
+            iniciarModoHost();
+        });
+
+        btnClient.addActionListener(e -> {
+            frame.dispose();
+            iniciarModoCliente();
+        });
+
+        // 6. Agregar los botones al panel con espacios entre ellos
+        mainPanel.add(btnLocalPvP);
+        mainPanel.add(Box.createRigidArea(new Dimension(0, 15)));
+        mainPanel.add(btnLocalIA);
+        mainPanel.add(Box.createRigidArea(new Dimension(0, 15)));
+        mainPanel.add(btnHost);
+        mainPanel.add(Box.createRigidArea(new Dimension(0, 15)));
+        mainPanel.add(btnClient);
+
+        // Agregar el panel al frame y visibilizar
+        frame.add(mainPanel);
+        frame.setVisible(true);
+    }
+
+    // Método auxiliar para que todos los botones tengan el mismo tamaño y estilo básico
+    private static JButton crearBotonEstructurado(String texto) {
+        JButton boton = new JButton(texto);
+        boton.setAlignmentX(Component.CENTER_ALIGNMENT);
+        boton.setMaximumSize(new Dimension(300, 40)); // Asegura que midan lo mismo
+        return boton;
+    }
+
+    // --- MÉTODOS CON TU LÓGICA ORIGINAL ---
+
+    private static void iniciarModoLocalPvP() {
+        System.out.println("Iniciando Modo 1 desde la UI...");
+        GameConfig config = GameConfig.createDefault();
+        Game game = new Game(config, "Jugador 1", "Jugador 2");
+        PlayerController hotseatController = new HotseatController(game);
+        ConsoleUI ui = new ConsoleUI(hotseatController, config, null);
+        
+        game.addListener(ui);
+        game.notifyListeners();
+        
+        // Hilo aparte para el loop de consola para que no congele la UI si decidís dejarlo ahí
+        new Thread(ui::startInputLoop).start();
+    }
+
+    private static void iniciarModoLocalIA() {
+        System.out.println("Iniciando Modo 2 desde la UI...");
+        GameConfig config = GameConfig.createDefault();
+        Game game = new Game(config, "Humano", "Bot");
+        PlayerController p1Controller = new LocalController(game, true);
+        ConsoleUI ui = new ConsoleUI(p1Controller, config, true);
+        AIController bot = new AIController(game, false);
+        
+        game.addListener(ui);
+        game.addListener(bot);
+        game.notifyListeners();
+        
+        new Thread(ui::startInputLoop).start();
+    }
+
+    private static void iniciarModoHost() {
+        System.out.println("Iniciando Modo 3 desde la UI...");
+        GameConfig config = GameConfig.createDefault();
+        Game game = new Game(config, "Host (Tú)", "Cliente (Remoto)");
+        PlayerController localController = new LocalController(game, true);
+        ConsoleUI ui = new ConsoleUI(localController, config, true);
+        
+        game.addListener(ui);
+        NetworkServer server = new NetworkServer(game, 8080);
+        server.startListeningInBackground();
+        
+        game.notifyListeners(); 
+        new Thread(ui::startInputLoop).start();
+    }
+
+    private static void iniciarModoCliente() {
+        System.out.println("Iniciando Modo 4 desde la UI...");
+        NetworkClientController netController = new NetworkClientController("127.0.0.1", 8080);
+        GameConfig config = GameConfig.createDefault(); // Nota: Asegúrate de cómo maneja el cliente la config
+        ConsoleUI ui = new ConsoleUI(netController, config, false);
+        
+        netController.setUI(ui); 
+        new Thread(ui::startInputLoop).start();
+    }
+}
+
+/*public class App {
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+        System.out.println("=== BATTLESHIP MAIN MENU ===");
+        System.out.println("1. Humano vs Humano (Local)");
+        System.out.println("2. Humano vs IA (Local)");
+        System.out.println("3. Crear Partida en Red (Host)");
+        System.out.println("4. Unirse a Partida en Red (Cliente)");
+        System.out.print("Elige un modo: ");
+        
+        int opcion = scanner.nextInt();
+        GameConfig config = GameConfig.createDefault();
+
+        if (opcion == 1) {
+            // --- MODO 1: LOCAL PVP (Hotseat) ---
+            Game game = new Game(config, "Jugador 1", "Jugador 2");
+            
+            // 1. Usamos el controlador inteligente que maneja ambos turnos
+            PlayerController hotseatController = new HotseatController(game);
+            
+            // 2. Usamos una sola consola con cámara dinámica (pasando 'null' al final)
+            ConsoleUI ui = new ConsoleUI(hotseatController, config, null);
+            
+            game.addListener(ui);
+            game.notifyListeners();
+            ui.startInputLoop();
+        }
+        else if (opcion == 2) {
+            // --- MODO 2: LOCAL VS IA ---
+            Game game = new Game(config, "Humano", "Bot");
+            
+            PlayerController p1Controller = new LocalController(game, true);
+            ConsoleUI ui = new ConsoleUI(p1Controller, config, true);
+            
+            AIController bot = new AIController(game, false);
+            
+            game.addListener(ui);
+            game.addListener(bot);
+            
+            game.notifyListeners();
+            ui.startInputLoop();
+
+        } 
+        else if (opcion == 3) {
+            // --- MODO 3: HOST (SERVIDOR) ---
+            System.out.println("Iniciando Motor del Juego...");
+            Game game = new Game(config, "Host (Tú)", "Cliente (Remoto)");
+            
+            // Tú juegas localmente como el Jugador 1
+            PlayerController localController = new LocalController(game, true);
+            // Pasamos 'true' porque la cámara siempre es tuya
+            ConsoleUI ui = new ConsoleUI(localController, config, true);
+            
+            game.addListener(ui);
+            
+            // Levantamos el servidor en segundo plano
+            NetworkServer server = new NetworkServer(game, 8080);
+            server.startListeningInBackground();
+            
+            // El Host puede empezar a poner sus barcos inmediatamente
+            game.notifyListeners(); 
+            ui.startInputLoop();
+
+        } 
+        else if (opcion == 4) {
+            // --- MODO 4: JOIN (CLIENTE) ---
+            System.out.println("Conectando al servidor...");
+            
+            // Conectamos a localhost (Si quieres jugar con un amigo real, cambias 127.0.0.1 por su IP de Hamachi/Radmin)
+            NetworkClientController netController = new NetworkClientController("127.0.0.1", 8080);
+            
+            // El cliente es el Jugador 2, pasamos 'false' a la cámara fija
+            ConsoleUI ui = new ConsoleUI(netController, config, false);
+            
+            // Enganchamos el tubo de red con la pantalla
+            netController.setUI(ui); 
+            
+            // Arrancamos a leer teclado
+            ui.startInputLoop();
+        }
+    }
+}*/

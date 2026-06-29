@@ -7,19 +7,73 @@ import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.border.EmptyBorder;
-
-import com.tpfinal.batallanaval.game.GameListener;
-
 import java.awt.Component;
 import java.awt.Dimension;
 
-public class MainMenuUI extends JFrame {
-	private final GameListener listener;
-	
-	public MainMenuWindow(GameListener listener) {
-		super("BattleShip - Menú Principal");
-		this.listener = listener;
-				
-	}
-	
+public class MainMenuUI {
+    private final JFrame frame;
+
+    // Recibimos las acciones como lambdas (Runnable) desde App
+    public MainMenuUI(Runnable onPvP, Runnable onIA, Runnable onHost, Runnable onCliente) {
+        // 1. Crear la ventana principal
+        frame = new JFrame("Battleship - Menú Principal");
+        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        frame.setSize(400, 450);
+        frame.setLocationRelativeTo(null);
+
+        // 2. Crear el panel con diseño vertical
+        JPanel mainPanel = new JPanel();
+        mainPanel.setLayout(new BoxLayout(mainPanel, BoxLayout.Y_AXIS));
+        mainPanel.setBorder(new EmptyBorder(20, 30, 20, 30));
+
+        // 3. Título
+        JLabel titulo = new JLabel("=== BATTLESHIP MAIN MENU ===");
+        titulo.setAlignmentX(Component.CENTER_ALIGNMENT);
+        titulo.setFont(titulo.getFont().deriveFont(16.0f));
+        mainPanel.add(titulo);
+        mainPanel.add(Box.createRigidArea(new Dimension(0, 30)));
+
+        // 4. Crear los botones
+        JButton btnLocalPvP = crearBotonEstructurado("1. Humano vs Humano (Local)");
+        JButton btnLocalIA = crearBotonEstructurado("2. Humano vs IA (Local)");
+        JButton btnHost = crearBotonEstructurado("3. Crear Partida en Red (Host)");
+        JButton btnClient = crearBotonEstructurado("4. Unirse a Partida en Red (Cliente)");
+
+        // 5. Asignar las acciones que vinieron por parámetro
+        btnLocalPvP.addActionListener(e -> ejecutarAccion(onPvP));
+        btnLocalIA.addActionListener(e -> ejecutarAccion(onIA));
+        btnHost.addActionListener(e -> ejecutarAccion(onHost));
+        btnClient.addActionListener(e -> ejecutarAccion(onCliente));
+
+        // 6. Agregar componentes al panel
+        mainPanel.add(btnLocalPvP);
+        mainPanel.add(Box.createRigidArea(new Dimension(0, 15)));
+        mainPanel.add(btnLocalIA);
+        mainPanel.add(Box.createRigidArea(new Dimension(0, 15)));
+        mainPanel.add(btnHost);
+        mainPanel.add(Box.createRigidArea(new Dimension(0, 15)));
+        mainPanel.add(btnClient);
+
+        frame.add(mainPanel);
+    }
+
+    // Método para mostrar la ventana
+    public void mostrar() {
+        frame.setVisible(true);
+    }
+
+    // Centraliza el cierre de ventana y la ejecución de la lógica del juego
+    private void ejecutarAccion(Runnable accion) {
+        frame.dispose(); 
+        if (accion != null) {
+            accion.run();
+        }
+    }
+
+    private JButton crearBotonEstructurado(String texto) {
+        JButton boton = new JButton(texto);
+        boton.setAlignmentX(Component.CENTER_ALIGNMENT);
+        boton.setMaximumSize(new Dimension(300, 40));
+        return boton;
+    }
 }
