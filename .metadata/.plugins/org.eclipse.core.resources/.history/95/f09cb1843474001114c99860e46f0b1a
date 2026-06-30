@@ -7,83 +7,73 @@ import com.tpfinal.batallanaval.view.ConsoleUI;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
-import java.util.LinkedList;
-import java.util.Queue;
-import javax.swing.SwingUtilities;
+
+import com.tpfinal.batallanaval.controller.PlayerController;
+import com.tpfinal.batallanaval.game.GameListener;
+import com.tpfinal.batallanaval.model.*;
+import com.tpfinal.batallanaval.view.ConsoleUI;
+
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
 
 public class GameUIAdapter implements GameListener {
-    private final ConsoleUI consoleUI; 
+    private final ConsoleUI consoleUI; // Reutilizamos tu clase original
     private final SwingUI vistaGrafica;
-    private final PlayerController controller;
+    private final PlayerController controller; // Usamos el contrato genérico inyectado
     
-    // Cola para mantener fijos los últimos mensajes de disparos o errores
-    private final Queue<String> historialAcciones = new LinkedList<>();
-    private static final int MAX_MENSAJES_HISTORIAL = 5;
-
+    // Herramientas para capturar el System.out de forma controlada
     private final ByteArrayOutputStream capturadorBuffer;
     private final PrintStream printStreamAlternativo;
     private final PrintStream standardOut;
 
     public GameUIAdapter(PlayerController controller, GameConfig config, Boolean fixedPerspectiveP1, SwingUI vistaGrafica) {
         this.vistaGrafica = vistaGrafica;
-        this.controller = controller;
+        this.controller = controller; // Guardamos la referencia local del controlador activo
+        
+        // 1. Instanciamos tu ConsoleUI rústica original tal cual estaba
         this.consoleUI = new ConsoleUI(controller, config, fixedPerspectiveP1);
 
+        // 2. Preparamos el capturador de consola
         this.capturadorBuffer = new ByteArrayOutputStream();
         this.printStreamAlternativo = new PrintStream(capturadorBuffer);
-        this.standardOut = System.out;
+        this.standardOut = System.out; // Guardamos la consola original por las dudas
 
+        // 3. Vinculamos la barra de texto de Swing con el loop de comandos
         this.vistaGrafica.setOnCommandSubmitted(this::procesarEntradaGrafica);
     }
 
-    // --- INTERCEPCIÓN SEGURA CON HILOS ---
+    // --- INTERCEPCIÓN E INYECCIÓN DE TEXTO ---
 
     private synchronized void ejecutarAccionYActualizarUI(Runnable accionEventual) {
-        // Redirigimos el stream ANTES de ejecutar cualquier lógica
-        System.setOut(printStreamAlternativo);
-        
         try {
+            // Redirigimos temporalmente la salida de System.out a nuestro buffer
+            System.setOut(printStreamAlternativo);
+            
+            // Ejecutamos el override original de tu ConsoleUI (puede ser onShotFired, onError, etc.)
             accionEventual.run();
             System.out.flush();
+            
+            String textoGenerado = capturadorBuffer.toString();
+            
+            if (textoGenerado.contains("=========================================")) {
+                // ¡MAGIA AQUÍ! Si es un cambio de estado con tablero, LIMPIAMOS la pantalla
+                vistaGrafica.limpiarPantalla();
+                // E imprimimos el tablero fresco
+                vistaGrafica.printLine(textoGenerado);
+            } else {
+                // Si NO es un tablero (es decir, es un onShotFired, onShipPlaced o onError)
+                // NO limpiamos la pantalla. Lo agregamos al final para que se lea ABAJO del tablero.
+                vistaGrafica.printLine(textoGenerado);
+            }
+            
         } finally {
-            // Restauramos INMEDIATAMENTE para asegurar la estabilidad de Eclipse
+            // Restauramos el System.out original
+            capturadorBuffer.reset();
             System.setOut(standardOut);
         }
-
-        String textoGenerado = capturadorBuffer.toString();
-        capturadorBuffer.reset(); // Limpiamos el buffer para la próxima captura
-
-        if (textoGenerado.trim().isEmpty()) return;
-
-        // Delegamos el renderizado visual a Swing de forma segura
-        SwingUtilities.invokeLater(() -> {
-            if (textoGenerado.contains("=========================================")) {
-                // Es un refresco completo del tablero
-                vistaGrafica.limpiarPantalla();
-                vistaGrafica.printLine(textoGenerado);
-                
-                // Si hay acciones en el historial, las adosamos abajo de forma fija
-                if (!historialAcciones.isEmpty()) {
-                    vistaGrafica.printLine("\n--- ÚLTIMOS MOVIMIENTOS ---");
-                    for (String msg : historialAcciones) {
-                        vistaGrafica.printLine(msg);
-                    }
-                }
-            } else {
-                // Es un onShotFired, onError u onShipPlaced (No contiene el separador grande)
-                // Lo encolamos para que persista bajo el tablero
-                if (historialAcciones.size() >= MAX_MENSAJES_HISTORIAL) {
-                    historialAcciones.poll(); // Saca el mensaje más viejo si se excede
-                }
-                historialAcciones.add(textoGenerado.trim());
-                
-                // Lo acoplamos al text area actual en tiempo real
-                vistaGrafica.printLine(textoGenerado.trim());
-            }
-        });
     }
 
-    // --- DELEGACIÓN DE EVENTOS NATIVOS ---
+    // --- DELEGACIÓN COMPLETA DE LOS EVENTOS DEL JUEGO ---
 
     @Override
     public void onGameStateChanged(GameSnapshot snapshot) {
@@ -105,7 +95,7 @@ public class GameUIAdapter implements GameListener {
         ejecutarAccionYActualizarUI(() -> consoleUI.onShotFired(pos, result, wasPlayer1));
     }
 
-    // --- PROCESAMIENTO DE COMANDOS ---
+    // --- PROCESAMIENTO DE COMANDOS DEL TEXTFIELD ---
 
     private void procesarEntradaGrafica(String input) {
         if (input.equalsIgnoreCase("salir")) {
@@ -113,12 +103,14 @@ public class GameUIAdapter implements GameListener {
             return;
         }
 
+        // Simulamos la entrada de datos inyectando el comando directamente en el controlador
         try {
             ejecutarAccionYActualizarUI(() -> {
                 String[] parts = input.split(" ");
                 int x = Integer.parseInt(parts[0]);
                 int y = Integer.parseInt(parts[1]);
 
+                // Usamos el controller inyectado aplicando polimorfismo puro de la interfaz
                 if (parts.length >= 3) {
                     Direction dir = parts[2].toUpperCase().startsWith("H") ? Direction.HORIZONTAL : Direction.VERTICAL;
                     controller.attemptPlaceShip(x, y, dir); 
@@ -127,7 +119,9 @@ public class GameUIAdapter implements GameListener {
                 }
             });
         } catch (Exception e) {
-            ejecutarAccionYActualizarUI(() -> System.out.println("❌ Formato inválido. Ej: '2 3' o '2 3 H'"));
+            ejecutarAccionYActualizarUI(() -> {
+                System.out.println("❌ Formato inválido. Sigue las instrucciones de la pantalla.");
+            });
         }
     }
 }
