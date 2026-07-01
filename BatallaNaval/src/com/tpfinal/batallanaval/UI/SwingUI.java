@@ -3,34 +3,34 @@ package com.tpfinal.batallanaval.UI;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
 public class SwingUI extends JFrame {
     private static final long serialVersionUID = 1L;
     private JTextArea terminalOutput;
-    private JTextField commandInput;
-    private Consumer<String> onCommandSubmitted;
-
-    private BoardPanel panelMiFlota;
-    private BoardPanel panelRadar;
     
-    // Guardamos los labels de los títulos para cambiarlos dinámicamente
+    // Eliminamos el JTextField de comandos ya que queda obsoleto
+    private BoardPanel panelMiFlota;
+    private BoardPanel panelRadar; 
     private JLabel lblTituloFlota;
     private JLabel lblTituloRadar;
 
-    public SwingUI(String titulo, int columnas, int filas) {
+    // Recibimos un callback unificado para cuando se interactúa con CUALQUIER tablero
+    // Parámetros: (x, y, esMiFlota, esClicIzquierdo)
+    public SwingUI(String titulo, int columnas, int filas, MouseClickDelegate clickDelegate) {
         setTitle(titulo);
-        initUI(columnas, filas);
+        initUI(columnas, filas, clickDelegate);
     } 
 
-    private void initUI(int columnas, int filas) {
-        setSize(900, 700); 
+    private void initUI(int columnas, int filas, MouseClickDelegate clickDelegate) {
+        setSize(900, 650); // Ajustamos tamaño al no tener input bar abajo
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
 
         JPanel mainPanel = new JPanel(new BorderLayout(10, 10));
         mainPanel.setBackground(new Color(10, 25, 47));
 
+        // Terminal bitácora (Se mantiene idéntica)
         terminalOutput = new JTextArea();
         terminalOutput.setEditable(false);
         terminalOutput.setBackground(Color.WHITE); 
@@ -38,70 +38,55 @@ public class SwingUI extends JFrame {
         terminalOutput.setForeground(Color.BLACK);
         
         JScrollPane scrollPane = new JScrollPane(terminalOutput);
-        scrollPane.setPreferredSize(new Dimension(850, 250)); 
-        mainPanel.add(scrollPane, BorderLayout.CENTER);
+        scrollPane.setPreferredSize(new Dimension(850, 200)); 
+        mainPanel.add(scrollPane, BorderLayout.SOUTH); // Mandamos la terminal abajo de todo de forma prolija
 
         JPanel panelContenedorTableros = new JPanel(new GridLayout(1, 2, 20, 0));
         
-        panelMiFlota = new BoardPanel(columnas, filas, false, null);
-        panelRadar = new BoardPanel(columnas, filas, false, null); 
+     // El tablero izquierdo pasa el clic marcando "esMiFlota = true"
+        panelMiFlota = new BoardPanel(columnas, filas, true, (btn, isLeft) -> {
+            clickDelegate.onGridClicked(btn.getXCoord(), btn.getYCoord(), true, isLeft);
+        });
 
-        // Inicializamos los labels correspondientes
+        // El tablero derecho pasa el clic marcando "esMiFlota = false"
+        panelRadar = new BoardPanel(columnas, filas, true, (btn, isLeft) -> {
+            clickDelegate.onGridClicked(btn.getXCoord(), btn.getYCoord(), false, isLeft);
+        }); 
+
         lblTituloFlota = new JLabel("", SwingConstants.CENTER);
         lblTituloRadar = new JLabel("", SwingConstants.CENTER);
 
         panelContenedorTableros.add(crearContenedorConTitulo(lblTituloFlota, panelMiFlota));
         panelContenedorTableros.add(crearContenedorConTitulo(lblTituloRadar, panelRadar));
-        mainPanel.add(panelContenedorTableros, BorderLayout.NORTH);
-
-        JPanel inputPanel = new JPanel(new BorderLayout(5, 5));
-        JLabel lblInput = new JLabel("Ingresar comando: ");
-        commandInput = new JTextField();
-        commandInput.setFont(new Font("Monospaced", Font.PLAIN, 13));
-        
-        commandInput.addActionListener(e -> {
-            String input = commandInput.getText().trim();
-            commandInput.setText("");
-            if (onCommandSubmitted != null && !input.isEmpty()) {
-                onCommandSubmitted.accept(input);
-            }
-        });
-
-        inputPanel.add(lblInput, BorderLayout.WEST);
-        inputPanel.add(commandInput, BorderLayout.CENTER);
-        mainPanel.add(inputPanel, BorderLayout.SOUTH);
+        mainPanel.add(panelContenedorTableros, BorderLayout.CENTER);
 
         add(mainPanel);
         setVisible(true);
-        commandInput.requestFocusInWindow();
     }
 
-    // Refactorizado para usar los labels dinámicos
     private JPanel crearContenedorConTitulo(JLabel labelTitulo, BoardPanel tablero) {
         JPanel contenedor = new JPanel(new BorderLayout(5, 5));
-        Color azulOscuro = new Color(10, 25, 47);
-        
         contenedor.setOpaque(true);
-        contenedor.setBackground(azulOscuro);
-        
+        contenedor.setBackground(new Color(10, 25, 47));
         labelTitulo.setFont(new Font("SansSerif", Font.BOLD, 12));
         labelTitulo.setForeground(Color.WHITE); 
-        
         contenedor.add(labelTitulo, BorderLayout.NORTH);
         contenedor.add(tablero, BorderLayout.CENTER);
-        
         return contenedor;
     }
 
-    // Nuevo método para cambiar los textos del encabezado en cada turno
     public void actualizarTitulos(String tituloFlota, String tituloRadar) {
         lblTituloFlota.setText(tituloFlota);
         lblTituloRadar.setText(tituloRadar);
     }
 
-    public void setOnCommandSubmitted(Consumer<String> callback) { this.onCommandSubmitted = callback; }
     public void limpiarPantalla() { terminalOutput.setText(""); }
     public void printLine(String text) { terminalOutput.append(text + "\n"); }
     public void actualizarCasilleroMiFlota(int x, int y, StatusCell status) { panelMiFlota.actualizarCasillero(x, y, status); }
     public void actualizarCasilleroRadar(int x, int y, StatusCell status) { panelRadar.actualizarCasillero(x, y, status); }
+
+    // Interfaz funcional delegada para estructurar el cuádruple evento del click
+    public interface MouseClickDelegate {
+        void onGridClicked(int x, int y, boolean esMiFlota, boolean esClicIzquierdo);
+    }
 }

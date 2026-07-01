@@ -75,7 +75,42 @@ public class PerspectiveManager {
                     }
                 }
                 vista.actualizarCasilleroRadar(x, y, estadoJ2);
+            	}
             }
         }
+     // Método auxiliar para congelar la pantalla en el turno actual mientras corre el Timer
+        public void aplicarPerspectivaConTurnoFijo(GameSnapshot snapshot, SwingUI vista, boolean esTurnoP1) {
+            String fase = "Fase: JUGANDO";
+            String jugadorActivo = esTurnoP1 ? "TURNO: JUGADOR 1" : "TURNO: JUGADOR 2";
+            vista.actualizarTitulos(fase, jugadorActivo);
+
+            for (int y = 0; y < config.getHeight(); y++) {
+                for (int x = 0; x < config.getWidth(); x++) {
+                    Position pos = new Position(x, y);
+
+                    // Tablero Izquierdo (J1)
+                    StatusCell estadoJ1 = snapshot.player1MissedShots.contains(pos) ? StatusCell.AGUA : StatusCell.VACIO;
+                    for (Ship s : snapshot.player1Ships) {
+                        for (Cell c : s.getParts()) {
+                            if (c.getPosition().equals(pos)) {
+                                estadoJ1 = c.isHit() ? StatusCell.IMPACTO : (esTurnoP1 ? StatusCell.BARCO : StatusCell.VACIO);
+                            }
+                        }
+                    }
+                    vista.actualizarCasilleroMiFlota(x, y, estadoJ1);
+
+                    // Tablero Derecho (J2)
+                    StatusCell estadoJ2 = snapshot.player2MissedShots.contains(pos) ? StatusCell.AGUA : StatusCell.VACIO;
+                    for (Ship s : snapshot.player2Ships) {
+                        for (Cell c : s.getParts()) {
+                            if (c.getPosition().equals(pos)) {
+                                estadoJ2 = c.isHit() ? StatusCell.IMPACTO : (!esTurnoP1 ? StatusCell.BARCO : StatusCell.VACIO);
+                            }
+                        }
+                    }
+                    vista.actualizarCasilleroRadar(x, y, estadoJ2);
+                }
+            }
+        
     }
 }

@@ -22,7 +22,7 @@ public class ConsoleUI implements GameListener {
         this.fixedPerspectiveP1 = fixedPerspectiveP1;
         this.scanner = new Scanner(System.in);
     }
-
+ 
     // --- MÉTODOS DE RECEPCIÓN (EVENTOS SIMPLIFICADOS) ---
 
     @Override
@@ -33,15 +33,16 @@ public class ConsoleUI implements GameListener {
         boolean viewAsP1 = (fixedPerspectiveP1 != null) ? fixedPerspectiveP1 : 
             (snapshot.state == GameState.PLACING_SHIPS ? (snapshot.player1Ships.size() < config.getShipCount()) : snapshot.isPlayer1Turn);
 
+        // --- FASE 1: COLOCACIÓN ---
         if (snapshot.state == GameState.PLACING_SHIPS) {
             System.out.println("\n=========================================");
             System.out.println("ESTADO: COLOCACIÓN DE BARCOS");
             System.out.println("-> Coloca tus piezas en la botonera gráfica.");
             System.out.println("-> Turno de colocación: " + (viewAsP1 ? "JUGADOR 1" : "JUGADOR 2"));
-            System.out.println("> Escribe en la barra inferior: X Y Direccion(H/V) -> ej: '2 3 H'");
         }
+        // --- FASE 2: JUGANDO (CORREGIDO SIN DUPLICADOS) ---
         else if (snapshot.state == GameState.PLAYING) {
-            // --- NUEVO CARTEL DE TRANSICIÓN DE FASE EN EL CLIENTE ---
+            // Cartel de transición de fase (Se ejecuta una sola vez)
             if (!cartelJuegoIniciadoMostrado) {
                 System.out.println("\n=========================================");
                 System.out.println("🎉 ¡YA ESTÁN TODOS LOS BARCOS PUESTOS, A JUGAR! 🎉");
@@ -49,28 +50,34 @@ public class ConsoleUI implements GameListener {
                 cartelJuegoIniciadoMostrado = true;
             }
 
-            // Identificar el turno de forma clara y explícita para el cliente
+            // Identificar el turno de forma clara según el modo (Hotseat / Red)
             String stringTurno;
             if (snapshot.isPlayer1Turn) {
-                stringTurno = "Jugador 1 (Host)";
+                stringTurno = (fixedPerspectiveP1 != null) ? "Jugador 1 (Host)" : "Jugador 1";
             } else {
-                stringTurno = "Jugador 2 (Tú)";
+                stringTurno = (fixedPerspectiveP1 != null) ? "Jugador 2 (Vos)" : "Jugador 2";
             }
 
             System.out.println("\n-----------------------------------------");
             System.out.println("⚔️ TURNO ACTUAL: " + stringTurno);
             
-            // Evaluamos si es el turno del cliente en base a su perspectiva fija (Jugador 2 -> fixedPerspectiveP1 == false)
+            // Evaluamos si es el turno del cliente o jugador local
             boolean esMiTurnoEnRed = (fixedPerspectiveP1 == null) || (snapshot.isPlayer1Turn == fixedPerspectiveP1);
             
             if (esMiTurnoEnRed) {
                 System.out.println("> ¡Es tu turno! Haz clic en el radar enemigo para disparar.");
             } else {
-                System.out.println("> Esperando que el enemigo (Host) ejecute su disparo...");
+                System.out.println("> Esperando que el enemigo ejecute su disparo...");
             }
         }
-     }
-
+        // --- FASE 3: FIN DE JUEGO (RECONSTRUIDO) ---
+        else if (snapshot.state == GameState.FINISHED) {
+            String ganador = snapshot.isPlayer1Turn ? "Jugador 1" : "Jugador 2";
+            System.out.println("\n=========================================");
+            System.out.println("🏆 ¡PARTIDA TERMINADA! Ganador: " + ganador);
+            System.out.println("=========================================");
+        }
+    }
     @Override
     public void onShipPlaced(Ship ship, int remainingCount) {
         System.out.println("✅ ¡Barco colocado exitosamente! Faltan colocar: " + remainingCount);
@@ -88,7 +95,7 @@ public class ConsoleUI implements GameListener {
         if (wasPlayer1) {
             tirador = "Jugador 1";
         } else {
-            tirador = (fixedPerspectiveP1 != null && fixedPerspectiveP1) ? "IA Enemiga" : "Jugador 2";
+            tirador = (fixedPerspectiveP1 != null && fixedPerspectiveP1) ? "IA" : "Jugador 2";
         }
         
         System.out.print(">>> " + tirador + " dispara en (" + pos.getX() + "," + pos.getY() + ") -> ");
@@ -99,10 +106,11 @@ public class ConsoleUI implements GameListener {
             case SUNK -> System.out.println("💥 ¡TOCADO Y HUNDIDO!");
         }
     }
+}
 
     // --- ELIMINAMOS EL MÉTODO DRAWBOARD POR COMPLETO ---
 
-    // --- MÉTODO DE ENVÍO (INPUTS CONSERVADO) ---
+  /*  // --- MÉTODO DE ENVÍO (INPUTS CONSERVADO) ---
     public void startInputLoop() {
         while (true) {
             String input = scanner.nextLine();
@@ -130,4 +138,4 @@ public class ConsoleUI implements GameListener {
             }
         }
     }
-}
+} */

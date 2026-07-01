@@ -1,0 +1,125 @@
+package com.tpfinal.batallanaval.UI;
+
+import com.tpfinal.batallanaval.controller.PlayerController;
+import com.tpfinal.batallanaval.game.GameListener;
+import com.tpfinal.batallanaval.model.*;
+import com.tpfinal.batallanaval.view.ConsoleUI;
+
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
+import java.util.LinkedList;
+import java.util.Queue;
+import javax.swing.SwingUtilities;
+
+public class GameUIAdapter implements GameListener {
+    private final ConsoleUI consoleUI; 
+    private final SwingUI vistaGrafica;
+    private final PlayerController controller;
+    private final GameConfig config;
+    private final Boolean fixedPerspectiveP1;
+    private final PerspectiveManager perspectiveManager;
+    
+    private final Queue<String> historialAcciones = new LinkedList<>(); 
+    private static final int MAX_MENSAJES_HISTORIAL = 5;
+
+    private final ByteArrayOutputStream capturadorBuffer;
+    private final PrintStream printStreamAlternativo;
+    private final PrintStream standardOut;
+    private GameSnapshot ultimoSnapshot;
+
+    public GameUIAdapter(PlayerController controller, GameConfig config, Boolean fixedPerspectiveP1) {
+        this.controller = controller;
+        this.config = config;
+        this.fixedPerspectiveP1 = fixedPerspectiveP1;
+
+        // Pasamos la lógica de clicks mediante la nueva interfaz funcional
+        this.vistaGrafica = new SwingUI("Battleship - Control por Mouse", config.getWidth(), config.getHeight(), this::mapearClickMouse);
+        this.consoleUI = new ConsoleUI(controller, config, fixedPerspectiveP1);
+
+        this.capturadorBuffer = new ByteArrayOutputStream();
+        this.printStreamAlternativo = new PrintStream(capturadorBuffer);
+        this.standardOut = System.out;
+
+        this.perspectiveManager = new PerspectiveManager(config, fixedPerspectiveP1);
+    }
+
+    private void mapearClickMouse(int x, int y, boolean esMiFlota, boolean esClicIzquierdo) {
+        if (ultimoSnapshot == null) return;
+
+        // FASE 1: Colocación de barcos (LÓGICA DINÁMICA CORREGIDA)
+        if (ultimoSnapshot.state == GameState.PLACING_SHIPS) {
+            
+            // Averiguamos a quién le toca colocar en este milisegundo
+            boolean leTocaColocarAP1 = (snapshotOpcional != null) ? fixedPerspectiveP1 : 
+                (ultimoSnapshot.player1Ships.size() < config.getShipCount());
+
+            // El J1 debe cliquear el izquierdo (esMiFlota == true)
+            // El J2 debe cliquear el derecho (esMiFlota == false)
+            boolean esClickEnSuPropioTablero = (leTocaColocarAP1 && esMiFlota) || (!leTocaColocarAP1 && !esMiFlota);
+
+            if (esClickEnSuPropioTablero) {
+                Direction dir = esClicIzquierdo ? Direction.HORIZONTAL : Direction.VERTICAL;
+                ejecutarAccionYActualizarUI(() -> {
+                    controller.attemptPlaceShip(x, y, dir);
+                });
+                forzarRefrescoVisual();
+            } else {
+                ejecutarAccionYActualizarUI(() -> {
+                    System.out.println("❌ No podés colocar barcos en el tablero del rival.");
+                });
+            }
+        }
+        
+        // FASE 2: Disparos (Se mantiene exactamente igual a la versión anterior que te andaba joya)
+        else if (ultimoSnapshot.state == GameState.PLAYING && esClicIzquierdo) {
+            boolean esTurnoP1 = (fixedPerspectiveP1 != null) ? fixedPerspectiveP1 : ultimoSnapshot.isPlayer1Turn;
+            boolean esClickEnTableroEnemigo = (esTurnoP1 && !esMiFlota) || (!esTurnoP1 && esMiFlota);
+
+            if (esClickEnTableroEnemigo) {
+                ejecutarAccionYActualizarUI(() -> {
+                    controller.fireShot(x, y);
+                });
+                forzarRefrescoVisual();
+            } else {
+                ejecutarAccionYActualizarUI(() -> {
+                    System.out.println("❌ No podés dispararte a tu propio tablero de defensa.");
+                });
+            }
+        }
+    }
+    private void actualizarBotonesColores(GameSnapshot snapshot) {
+        perspectiveManager.aplicarPerspectiva(snapshot, vistaGrafica);
+    }
+
+    private synchronized void ejecutarAccionYActualizarUI(Runnable accionEventual) {
+        System.setOut(printStreamAlternativo);
+        try {
+            accionEventual.run();
+            System.out.flush();
+        } finally {
+            System.setOut(standardOut);
+        }
+
+        String textoGenerado = capturadorBuffer.toString();
+        capturadorBuffer.reset();
+
+        if (!textoGenerado.trim().isEmpty()) {
+            SwingUtilities.invokeLater(() -> {
+                vistaGrafica.printLine(textoGenerado.trim());
+            });
+        }
+    }
+
+    private void forzarRefrescoVisual() {
+        if (ultimoSnapshot != null) {
+            SwingUtilities.invokeLater(() -> {
+                perspectiveManager.aplicarPerspectiva(ultimoSnapshot, vistaGrafica);
+            });
+        }
+    }
+
+    @Override public void onGameStateChanged(GameSnapshot snapshot) { this.ultimoSnapshot = snapshot; ejecutarAccionYActualizarUI(() -> consoleUI.onGameStateChanged(snapshot)); forzarRefrescoVisual(); }
+    @Override public void onShipPlaced(Ship ship, int remainingCount) { ejecutarAccionYActualizarUI(() -> consoleUI.onShipPlaced(ship, remainingCount)); forzarRefrescoVisual(); }
+    @Override public void onError(String errorMessage) { ejecutarAccionYActualizarUI(() -> consoleUI.onError(errorMessage)); }
+    @Override public void onShotFired(Position pos, ShotResult result, boolean wasPlayer1) { ejecutarAccionYActualizarUI(() -> consoleUI.onShotFired(pos, result, wasPlayer1)); }
+}
