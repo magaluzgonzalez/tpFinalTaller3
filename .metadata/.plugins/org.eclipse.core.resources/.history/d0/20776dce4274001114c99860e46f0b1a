@@ -1,0 +1,85 @@
+package com.tpfinal.batallanaval.UI;
+
+import com.tpfinal.batallanaval.controller.PlayerController;
+import com.tpfinal.batallanaval.game.GameListener;
+import com.tpfinal.batallanaval.model.*;
+import com.tpfinal.batallanaval.view.ConsoleUI;
+
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
+
+import com.tpfinal.batallanaval.controller.PlayerController;
+import com.tpfinal.batallanaval.game.GameListener;
+import com.tpfinal.batallanaval.model.*;
+import javax.swing.SwingUtilities;
+import java.util.List;
+
+public class GameUIAdapter implements GameListener {
+    private final SwingUI vistaGrafica;
+    private final PlayerController controller;
+    private final GameConfig config;
+    private final Boolean fixedPerspectiveP1;
+
+    public GameUIAdapter(PlayerController controller, GameConfig config, Boolean fixedPerspectiveP1) {
+        this.controller = controller;
+        this.config = config;
+        this.fixedPerspectiveP1 = fixedPerspectiveP1;
+
+        // Pasamos el click directamente al crear la SwingUI, delegando limpiamente
+        this.vistaGrafica = new SwingUI("Battleship - Juego", config.getWidth(), config.getHeight(), this.controller::fireShot);
+    }
+
+    @Override
+    public void onGameStateChanged(GameSnapshot snapshot) {
+        SwingUtilities.invokeLater(() -> {
+            vistaGrafica.actualizarMensajeEstado("ESTADO: " + snapshot.state);
+
+            boolean viewAsP1 = (fixedPerspectiveP1 != null) ? fixedPerspectiveP1 : 
+                (snapshot.state == GameState.PLACING_SHIPS ? (snapshot.player1Ships.size() < config.getShipCount()) : snapshot.isPlayer1Turn);
+
+            // Refrescamos ambos mapas de forma directa
+            actualizarMatriz(viewAsP1 ? snapshot.player1Ships : snapshot.player2Ships, viewAsP1 ? snapshot.player1MissedShots : snapshot.player2MissedShots, true);
+            actualizarMatriz(viewAsP1 ? snapshot.player2Ships : snapshot.player1Ships, viewAsP1 ? snapshot.player2MissedShots : snapshot.player1MissedShots, false);
+        });
+    }
+
+    private void actualizarMatriz(List<Ship> ships, List<Position> misses, boolean esMiFlota) {
+        for (int y = 0; y < config.getHeight(); y++) {
+            for (int x = 0; x < config.getWidth(); x++) {
+                Position pos = new Position(x, y);
+                StatusCell status = StatusCell.VACIO;
+
+                if (misses.contains(pos)) status = StatusCell.AGUA;
+
+                for (Ship ship : ships) {
+                    for (Cell part : ship.getParts()) {
+                        if (part.getPosition().equals(pos)) {
+                            status = part.isHit() ? StatusCell.IMPACTO : (esMiFlota ? StatusCell.BARCO : StatusCell.VACIO);
+                        }
+                    }
+                }
+
+                if (esMiFlota) vistaGrafica.actualizarCasilleroMiFlota(x, y, status);
+                else vistaGrafica.actualizarCasilleroRadar(x, y, status);
+            }
+        }
+    }
+
+    @Override
+    public void onShipPlaced(Ship s, int rem) {
+        SwingUtilities.invokeLater(() -> vistaGrafica.actualizarHistorial("✅ Barco colocado. Faltan: " + rem));
+    }
+
+    @Override
+    public void onError(String err) {
+        SwingUtilities.invokeLater(() -> vistaGrafica.actualizarHistorial("❌ Error: " + err));
+    }
+
+    @Override
+    public void onShotFired(Position p, ShotResult res, boolean p1) {
+        SwingUtilities.invokeLater(() -> {
+            String txtRes = switch (res) { case MISS -> "AGUA"; case HIT -> "IMPACTO"; case SUNK -> "TOCADO Y HUNDIDO"; };
+            vistaGrafica.actualizarHistorial(">>> Disparo en (" + p.getX() + "," + p.getY() + ") -> " + txtRes);
+        });
+    }
+}

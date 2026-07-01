@@ -1,0 +1,67 @@
+package com.tpfinal.batallanaval.UI;
+
+import javax.swing.*;
+import javax.swing.border.EmptyBorder;
+import java.awt.*;
+import java.util.function.BiConsumer;
+
+public class SwingUI extends JFrame {
+    private static final long serialVersionUID = 1L;
+
+    private final TableroPanel panelMiFlota;
+    private final TableroPanel panelRadar;
+    private final JLabel lblMensajeEstado;
+    private final JLabel lblHistorialAccion;
+
+    public SwingUI(String titulo, int columnas, int filas, BiConsumer<Integer, Integer> onRadarClicked) {
+        setTitle(titulo);
+        setSize(850, 500);
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setLocationRelativeTo(null);
+
+        JPanel mainPanel = new JPanel(new BorderLayout(15, 15));
+        mainPanel.setBorder(new EmptyBorder(15, 15, 15, 15));
+
+        // --- Panel Superior de Información ---
+        JPanel panelInfo = new JPanel(new GridLayout(2, 1, 5, 5));
+        panelInfo.setBackground(new Color(45, 45, 45));
+        panelInfo.setBorder(new EmptyBorder(10, 10, 10, 10));
+        
+        lblMensajeEstado = new JLabel("=== INICIANDO PARTIDA ===", SwingConstants.CENTER);
+        lblMensajeEstado.setForeground(Color.WHITE);
+        lblMensajeEstado.setFont(new Font("SansSerif", Font.BOLD, 14));
+        
+        lblHistorialAccion = new JLabel("Esperando movimientos...", SwingConstants.CENTER);
+        lblHistorialAccion.setForeground(Color.LIGHT_GRAY);
+        panelInfo.add(lblMensajeEstado);
+        panelInfo.add(lblHistorialAccion);
+        mainPanel.add(panelInfo, BorderLayout.NORTH);
+
+        // --- Paneles de Tableros usando el nuevo componente ---
+        JPanel panelTableros = new JPanel(new GridLayout(1, 2, 25, 0));
+        
+        panelMiFlota = new TableroPanel(columnas, filas, false, null);
+        panelRadar = new TableroPanel(columnas, filas, true, onRadarClicked);
+
+        panelTableros.add(crearContenedorConTitulo("MI FLOTA (Defensa)", panelMiFlota));
+        panelTableros.add(crearContenedorConTitulo("RADAR ENEMIGO (Ataque)", panelRadar));
+
+        mainPanel.add(panelTableros, BorderLayout.CENTER);
+        add(mainPanel);
+        setVisible(true);
+    }
+
+    private JPanel crearContenedorConTitulo(String titulo, TableroPanel tablero) {
+        JPanel contenedor = new JPanel(new BorderLayout(5, 5));
+        JLabel lblTitulo = new JLabel(titulo, SwingConstants.CENTER);
+        lblTitulo.setFont(new Font("SansSerif", Font.BOLD, 12));
+        contenedor.add(lblTitulo, BorderLayout.NORTH);
+        contenedor.add(tablero, BorderLayout.CENTER);
+        return contenedor;
+    }
+
+    public void actualizarMensajeEstado(String texto) { lblMensajeEstado.setText(texto); }
+    public void actualizarHistorial(String texto) { lblHistorialAccion.setText(texto); }
+    public void actualizarCasilleroMiFlota(int x, int y, CeldaEstado estado) { panelMiFlota.actualizarCasillero(x, y, estado); }
+    public void actualizarCasilleroRadar(int x, int y, CeldaEstado estado) { panelRadar.actualizarCasillero(x, y, estado); }
+}

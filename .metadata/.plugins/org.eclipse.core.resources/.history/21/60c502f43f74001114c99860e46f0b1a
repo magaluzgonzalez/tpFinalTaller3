@@ -1,0 +1,39 @@
+package com.tpfinal.batallanaval.UI;
+
+import javax.swing.*;
+import java.awt.*;
+import java.util.function.BiConsumer;
+
+public class BoardPanel extends JPanel {
+    private static final long serialVersionUID = 1L;
+    private final int columnas;
+    private final int filas;
+    private final CheckboxButton[][] matriz;
+
+    public TableroPanel(int columnas, int filas, boolean esInteractivo, BiConsumer<Integer, Integer> onClickCasillero) {
+        this.columnas = columnas;
+        this.filas = filas;
+        this.matriz = new CheckboxButton[columnas][filas];
+
+        // Usamos un GridLayout limpio basado en el tamaño de tu juego
+        setLayout(new GridLayout(filas, columnas, 2, 2));
+
+        for (int y = 0; y < filas; y++) {
+            for (int x = 0; x < columnas; x++) {
+                CheckboxButton boton = new CheckboxButton(x, y);
+                matriz[x][y] = boton;
+
+                if (esInteractivo && onClickCasillero != null) {
+                    boton.addActionListener(e -> onClickCasillero.accept(boton.getXCoord(), boton.getYCoord()));
+                }
+                add(boton);
+            }
+        }
+    }
+
+    public void actualizarCasillero(int x, int y, StatusCell status) {
+        if (x >= 0 && x < columnas && y >= 0 && y < filas) {
+            matriz[x][y].setEstado(status);
+        }
+    }
+}

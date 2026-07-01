@@ -1,0 +1,108 @@
+package com.tpfinal.batallanaval.UI;
+
+import com.tpfinal.batallanaval.controller.PlayerController;
+import com.tpfinal.batallanaval.game.GameListener;
+import com.tpfinal.batallanaval.model.*;
+import com.tpfinal.batallanaval.view.ConsoleUI;
+
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
+import java.util.LinkedList;
+import java.util.Queue;
+import javax.swing.SwingUtilities;
+
+public class GameUIAdapter implements GameListener {
+    private final ConsoleUI consoleUI; 
+    private final SwingUI vistaGrafica;
+    private final PlayerController controller;
+    private final GameConfig config;
+    private final Boolean fixedPerspectiveP1;
+    private final PerspectiveManager perspectiveManager; // 1. Agregamos la variable global
+    
+    private final Queue<String> historialAcciones = new LinkedList<>(); 
+    private static final int MAX_MENSAJES_HISTORIAL = 5;
+
+    private final ByteArrayOutputStream capturadorBuffer;
+    private final PrintStream printStreamAlternativo;
+    private final PrintStream standardOut;
+
+    public GameUIAdapter(PlayerController controller, GameConfig config, Boolean fixedPerspectiveP1) {
+        this.controller = controller;
+        this.config = config;
+        this.fixedPerspectiveP1 = fixedPerspectiveP1;
+
+        this.vistaGrafica = new SwingUI("Battleship - Gráfica Integrada", config.getWidth(), config.getHeight());
+        this.consoleUI = new ConsoleUI(controller, config, fixedPerspectiveP1);
+
+        this.capturadorBuffer = new ByteArrayOutputStream();
+        this.printStreamAlternativo = new PrintStream(capturadorBuffer);
+        this.standardOut = System.out;
+
+        this.vistaGrafica.setOnCommandSubmitted(this::procesarEntradaGrafica);
+        
+        // 2. Inicializamos el mánager correctamente en el constructor
+        this.perspectiveManager = new PerspectiveManager(config, fixedPerspectiveP1);
+    }
+
+    // 3. Dejamos una sola versión limpia de actualización delegando al mánager
+    private void actualizarBotonesColores(GameSnapshot snapshot) {
+        perspectiveManager.aplicarPerspectiva(snapshot, vistaGrafica);
+    }
+
+    private synchronized void ejecutarAccionYActualizarUI(Runnable accionEventual, GameSnapshot snapshotOpcional) {
+        System.setOut(printStreamAlternativo);
+        try {
+            accionEventual.run();
+            System.out.flush();
+        } finally {
+            System.setOut(standardOut);
+        }
+
+        String textoGenerated = capturadorBuffer.toString();
+        capturadorBuffer.reset();
+
+        SwingUtilities.invokeLater(() -> {
+            if (textoGenerated.contains("=========================================")) {
+                vistaGrafica.limpiarPantalla();
+                vistaGrafica.printLine(textoGenerated);
+                
+                if (!historialAcciones.isEmpty()) {
+                    vistaGrafica.printLine("\n--- ÚLTIMOS MOVIMIENTOS ---");
+                    for (String msg : historialAcciones) vistaGrafica.printLine(msg);
+                }
+
+                if (snapshotOpcional != null) {
+                    actualizarBotonesColores(snapshotOpcional);
+                }
+            } else if (!textoGenerated.trim().isEmpty()) {
+                if (historialAcciones.size() >= MAX_MENSAJES_HISTORIAL) historialAcciones.poll();
+                historialAcciones.add(textoGenerated.trim());
+                vistaGrafica.printLine(textoGenerated.trim());
+            }
+        });
+    }
+
+    @Override public void onGameStateChanged(GameSnapshot snapshot) { ejecutarAccionYActualizarUI(() -> consoleUI.onGameStateChanged(snapshot), snapshot); }
+    @Override public void onShipPlaced(Ship ship, int remainingCount) { ejecutarAccionYActualizarUI(() -> consoleUI.onShipPlaced(ship, remainingCount), null); }
+    @Override public void onError(String errorMessage) { ejecutarAccionYActualizarUI(() -> consoleUI.onError(errorMessage), null); }
+    @Override public void onShotFired(Position pos, ShotResult result, boolean wasPlayer1) { ejecutarAccionYActualizarUI(() -> consoleUI.onShotFired(pos, result, wasPlayer1), null); }
+
+    private void procesarEntradaGrafica(String input) {
+        if (input.equalsIgnoreCase("salir")) { vistaGrafica.dispose(); return; }
+        try {
+            ejecutarAccionYActualizarUI(() -> {
+                String[] parts = input.split(" ");
+                int x = Integer.parseInt(parts[0]);
+                int y = Integer.parseInt(parts[1]);
+                if (parts.length >= 3) {
+                    Direction dir = parts[2].toUpperCase().startsWith("H") ? Direction.HORIZONTAL : Direction.VERTICAL;
+                    controller.attemptPlaceShip(x, y, dir); 
+                } else {
+                    controller.fireShot(x, y);
+                }
+            }, null);
+        } catch (Exception e) {
+            ejecutarAccionYActualizarUI(() -> System.out.println("❌ Formato inválido."), null);
+        }
+    }
+}

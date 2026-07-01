@@ -1,0 +1,42 @@
+package com.tpfinal.batallanaval.UI;
+
+import javax.swing.JButton;
+import java.awt.Dimension;
+
+public class CheckboxButton extends JButton {
+		
+	
+	private static final long serialVersionUID = 1L;
+    private final int xCoord;
+    private final int yCoord;
+
+    public CheckboxButton(int x, int y) {
+        this.xCoord = x;
+        this.yCoord = y;
+        
+        // Configuración visual básica para que se vea plano y limpio
+        setPreferredSize(new Dimension(35, 35));
+        setFocusPainted(false);
+        setOpaque(true);
+        setBorder(javax.swing.BorderFactory.createLineBorder(java.awt.Color.GRAY, 1));
+        setEstado(CeldaEstado.VACIO);
+    }
+
+    public int getXCoord() {
+        return xCoord;
+    }
+
+    public int getYCoord() {
+        return yCoord;
+    }
+
+    public void setEstado(CeldaEstado estado) {
+        setBackground(estado.getColor());
+        // Deshabilitar visualmente si ya fue atacado o interactuado para dar feedback de UI
+        if (estado == CeldaEstado.AGUA || estado == CeldaEstado.IMPACTO) {
+            setEnabled(false);
+        } else {
+            setEnabled(true);
+        }
+    }
+}

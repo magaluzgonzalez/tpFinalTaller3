@@ -1,0 +1,110 @@
+package com.tpfinal.batallanaval.UI;
+
+import com.tpfinal.batallanaval.controller.PlayerController;
+import com.tpfinal.batallanaval.game.GameListener;
+import com.tpfinal.batallanaval.model.*;
+import com.tpfinal.batallanaval.view.ConsoleUI;
+
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
+import java.util.LinkedList;
+import java.util.Queue;
+import javax.swing.SwingUtilities;
+
+import com.tpfinal.batallanaval.controller.PlayerController;
+import com.tpfinal.batallanaval.game.GameListener;
+import com.tpfinal.batallanaval.model.*;
+import com.tpfinal.batallanaval.view.ConsoleUI;
+
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
+import javax.swing.SwingUtilities;
+
+public class GameUIAdapter implements GameListener {
+    private final ConsoleUI consoleUI; 
+    private final SwingUI vistaGrafica;
+    private final PlayerController controller;
+    private final PerspectiveManager perspectiveManager;
+    
+    private final ByteArrayOutputStream capturadorBuffer;
+    private final PrintStream printStreamAlternativo;
+    private final PrintStream standardOut;
+
+    // Guardamos el último snapshot recibido para poder refrescar la pantalla en cualquier evento
+    private GameSnapshot ultimoSnapshot;
+
+    public GameUIAdapter(PlayerController controller, GameConfig config, Boolean fixedPerspectiveP1) {
+        this.controller = controller;
+
+        this.vistaGrafica = new SwingUI("Battleship - Gráfica Integrada", config.getWidth(), config.getHeight());
+        this.consoleUI = new ConsoleUI(controller, config, fixedPerspectiveP1);
+
+        this.capturadorBuffer = new ByteArrayOutputStream();
+        this.printStreamAlternativo = new PrintStream(capturadorBuffer);
+        this.standardOut = System.out;
+
+        this.vistaGrafica.setOnCommandSubmitted(this::procesarEntradaGrafica);
+        this.perspectiveManager = new PerspectiveManager(config, fixedPerspectiveP1);
+    }
+
+    // --- INTERCEPCIÓN DE BITÁCORA ---
+
+    private synchronized void ejecutarAccionYActualizarUI(Runnable accionEventual) {
+        System.setOut(printStreamAlternativo);
+        try {
+            accionEventual.run();
+            System.out.flush();
+        } finally {
+            System.setOut(standardOut);
+        }
+
+        String textoGenerado = capturadorBuffer.toString();
+        capturadorBuffer.reset();
+
+        if (!textoGenerado.trim().isEmpty()) {
+            SwingUtilities.invokeLater(() -> {
+                // Imprime de forma fluida el mensaje de bitácora (Ej: ">>> Jugador 1 dispara...")
+                vistaGrafica.printLine(textoGenerado.trim());
+            });
+        }
+    }
+
+    // --- REFRESCO ESTRICTO DE BOTONES DE COLORES ---
+
+    private void forzarRefrescoVisual() {
+        if (ultimoSnapshot != null) {
+            SwingUtilities.invokeLater(() -> {
+                perspectiveManager.aplicarPerspectiva(ultimoSnapshot, vistaGrafica);
+            });
+        }
+    }
+
+    // --- DELEGACIÓN DE EVENTOS DEL MOTOR ---
+
+    @Override 
+    public void onGameStateChanged(GameSnapshot snapshot) { 
+        this.ultimoSnapshot = snapshot; // Guardamos la foto actual del juego
+        // 1. Limpiamos la pantalla de texto solo en cambios de estado mayores si querés, 
+        // o dejamos que acumule el historial. Para que no se borre el historial, no limpiamos a ciegas.
+        ejecutarAccionYActualizarUI(() -> consoleUI.onGameStateChanged(snapshot)); 
+        forzarRefrescoVisual(); // REFRESCO GARANTIZADO
+    }
+
+    @Override 
+    public void onShipPlaced(Ship ship, int remainingCount) { 
+        ejecutarAccionYActualizarUI(() -> consoleUI.onShipPlaced(ship, remainingCount)); 
+        // Si tu snapshot del juego cambia internamente al poner un barco, forzamos actualización
+        forzarRefrescoVisual();
+    }
+
+    @Override 
+    public void onError(String errorMessage) { 
+        ejecutarAccionYActualizarUI(() -> consoleUI.onError(errorMessage)); 
+    }
+
+    @Override 
+    public void onShotFired(Position pos, ShotResult result, boolean wasPlayer1) { 
+        ejecutarAccionYActualizarUI(() -> consoleUI.onShotFired(pos, result, wasPlayer1)); 
+        // Al disparar no limpiamos la pantalla de texto, dejamos que se lea el "¡AGUA!" o "🔥 ¡IMPACTO!"
+    }
+}

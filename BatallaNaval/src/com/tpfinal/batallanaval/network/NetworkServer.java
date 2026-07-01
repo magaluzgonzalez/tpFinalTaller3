@@ -26,16 +26,14 @@ public class NetworkServer {
 
                 ObjectOutputStream salida = new ObjectOutputStream(socket.getOutputStream());
                 ObjectInputStream entrada = new ObjectInputStream(socket.getInputStream());
-
-                // 1. EL MEGÁFONO: Traduce eventos del juego a la red
+                
                 game.addListener(new GameListener() {
                     @Override
                     public void onGameStateChanged(GameSnapshot snapshot) {
                         try {
-                            // Bloque synchronized: Evita que dos hilos choquen al enviar datos
                             synchronized (salida) {
                                 salida.writeObject(snapshot);
-                                salida.reset(); // Limpiamos la caché
+                                salida.reset();
                             }
                         } catch (Exception e) {}
                     }
@@ -49,9 +47,51 @@ public class NetworkServer {
                         } catch (Exception e) {}
                     }
                     
-                    @Override public void onShipPlaced(Ship ship, int remaining) {}
-                    @Override public void onShotFired(Position pos, ShotResult result, boolean p1Turn) {}
+                    @Override 
+                    public void onShipPlaced(Ship ship, int remaining) {
+                        try {
+                            synchronized (salida) {
+                                salida.writeObject("PLACED:" + remaining);
+                            }
+                        } catch (Exception e) {}
+                    }
+                    
+                    @Override 
+                    public void onShotFired(Position pos, ShotResult result, boolean p1Turn) {
+                        try {
+                            synchronized (salida) {
+                                // Serializamos un string simple para el log de disparos remoto
+                                salida.writeObject("SHOT_FIRED " + pos.getX() + " " + pos.getY() + " " + result.name() + " " + p1Turn);
+                            }
+                        } catch (Exception e) {}
+                    }
                 });
+
+//                // 1. EL MEGÁFONO: Traduce eventos del juego a la red
+//                game.addListener(new GameListener() {
+//                    @Override
+//                    public void onGameStateChanged(GameSnapshot snapshot) {
+//                        try {
+//                            // Bloque synchronized: Evita que dos hilos choquen al enviar datos
+//                            synchronized (salida) {
+//                                salida.writeObject(snapshot);
+//                                salida.reset(); // Limpiamos la caché
+//                            }
+//                        } catch (Exception e) {}
+//                    }
+//
+//                    @Override
+//                    public void onError(String errorMessage) {
+//                        try {
+//                            synchronized (salida) {
+//                                salida.writeObject("ERROR:" + errorMessage);
+//                            }
+//                        } catch (Exception e) {}
+//                    }
+//                    
+//                    @Override public void onShipPlaced(Ship ship, int remaining) {}
+//                    @Override public void onShotFired(Position pos, ShotResult result, boolean p1Turn) {}
+//                });
 
                 // Forzamos el envío de la foto actual al cliente recién conectado
                 game.notifyListeners();
@@ -84,5 +124,6 @@ public class NetworkServer {
                 System.out.println("\n[RED] Conexión con el cliente perdida.");
             }
         }).start(); // ¡Inicia el hilo secundario!
+        
     }
 }

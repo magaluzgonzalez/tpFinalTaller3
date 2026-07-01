@@ -1,0 +1,104 @@
+package com.tpfinal.batallanaval.UI;
+
+import javax.swing.*;
+import javax.swing.border.EmptyBorder;
+import java.awt.*;
+import java.util.function.Consumer;
+
+public class SwingUI extends JFrame {
+    private static final long serialVersionUID = 1L;
+    private JTextArea terminalOutput;
+    private JTextField commandInput;
+    private Consumer<String> onCommandSubmitted;
+
+    // Sumamos los componentes visuales de los tableros
+    private BoardPanel panelMiFlota;
+    private BoardPanel panelRadar;
+
+    public SwingUI(String titulo, int columnas, int filas) {
+        setTitle(titulo);
+        initUI(columnas, filas);
+    } 
+
+    private void initUI(int columnas, int filas) {
+        setSize(900, 700); // Ventana más amplia
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setLocationRelativeTo(null);
+
+        JPanel mainPanel = new JPanel(new BorderLayout(10, 10));
+        mainPanel.setBackground(new Color(10, 25, 47));
+
+        // Tu terminal clásica que funcionaba de 10 ---
+        terminalOutput = new JTextArea();
+        terminalOutput.setEditable(false);
+        terminalOutput.setBackground(Color.WHITE); 
+        terminalOutput.setFont(new Font("Monospaced", Font.PLAIN, 12)); 
+        terminalOutput.setForeground(Color.BLACK);
+        
+    
+        JScrollPane scrollPane = new JScrollPane(terminalOutput);
+        scrollPane.setPreferredSize(new Dimension(850, 250)); // Espacio fijo para el texto
+        mainPanel.add(scrollPane, BorderLayout.CENTER);
+
+        // --- SECCIÓN CENTRAL: Los nuevos tableros gráficos de botones ---
+        JPanel panelContenedorTableros = new JPanel(new GridLayout(1, 2, 20, 0));
+        
+        panelMiFlota = new BoardPanel(columnas, filas, false, null);
+        panelRadar = new BoardPanel(columnas, filas, false, null); // Vista gráfica de reflejo
+
+        panelContenedorTableros.add(crearContenedorConTitulo("MI FLOTA (Defensa - Amarillo/Rojo)", panelMiFlota));
+        panelContenedorTableros.add(crearContenedorConTitulo("RADAR ENEMIGO (Ataque - Azul/Rojo)", panelRadar));
+        mainPanel.add(panelContenedorTableros, BorderLayout.NORTH);
+
+        // --- SECCIÓN INFERIOR: Tu barra de comandos original ---
+        JPanel inputPanel = new JPanel(new BorderLayout(5, 5));
+        JLabel lblInput = new JLabel("Ingresar comando: ");
+        commandInput = new JTextField();
+        commandInput.setFont(new Font("Monospaced", Font.PLAIN, 13));
+        
+        commandInput.addActionListener(e -> {
+            String input = commandInput.getText().trim();
+            commandInput.setText("");
+            if (onCommandSubmitted != null && !input.isEmpty()) {
+                onCommandSubmitted.accept(input);
+            }
+        });
+
+        inputPanel.add(lblInput, BorderLayout.WEST);
+        inputPanel.add(commandInput, BorderLayout.CENTER);
+        mainPanel.add(inputPanel, BorderLayout.SOUTH);
+
+        add(mainPanel);
+        setVisible(true);
+        commandInput.requestFocusInWindow();
+    }
+
+    private JPanel crearContenedorConTitulo(String titulo, BoardPanel tablero) {
+        JPanel contenedor = new JPanel(new BorderLayout(5, 5));
+        
+        // 1. Definimos el color azul oscuro (RGB: 10, 25, 47 es un tono naval muy lindo)
+        Color azulOscuro = new Color(10, 25, 47);
+        
+        // 2. Pintamos el contenedor del tablero
+        contenedor.setOpaque(true);
+        contenedor.setBackground(azulOscuro);
+        
+        JLabel lblTitulo = new JLabel(titulo, SwingConstants.CENTER);
+        lblTitulo.setFont(new Font("SansSerif", Font.BOLD, 11));
+        
+        // 3. Cambiamos el texto del título a Blanco para que contraste con el azul
+        lblTitulo.setForeground(Color.WHITE); 
+        
+        contenedor.add(lblTitulo, BorderLayout.NORTH);
+        contenedor.add(tablero, BorderLayout.CENTER);
+        
+        return contenedor;
+    }
+    public void setOnCommandSubmitted(Consumer<String> callback) { this.onCommandSubmitted = callback; }
+    public void limpiarPantalla() { terminalOutput.setText(""); }
+    public void printLine(String text) { terminalOutput.append(text + "\n"); }
+
+    // Métodos delegados para pintar los botones de colores
+    public void actualizarCasilleroMiFlota(int x, int y, StatusCell status) { panelMiFlota.actualizarCasillero(x, y, status); }
+    public void actualizarCasilleroRadar(int x, int y, StatusCell status) { panelRadar.actualizarCasillero(x, y, status); }
+}
