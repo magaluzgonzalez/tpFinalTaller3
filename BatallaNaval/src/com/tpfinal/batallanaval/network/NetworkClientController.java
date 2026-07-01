@@ -14,7 +14,7 @@ public class NetworkClientController implements PlayerController {
     private GameListener ui; // Quien sea que dibuje la pantalla (Consola o Gráfica)
 
     public NetworkClientController(String ip, int port) {
-        try {
+        try { 
             Socket socket = new Socket(ip, port);
             salida = new ObjectOutputStream(socket.getOutputStream());
             entrada = new ObjectInputStream(socket.getInputStream());
@@ -34,21 +34,30 @@ public class NetworkClientController implements PlayerController {
     private void iniciarEscucha() {
         new Thread(() -> {
             try {
-                while (true) {
-                    Object recibido = entrada.readObject();
-                    
-                    if (recibido instanceof GameSnapshot && ui != null) {
-                        ui.onGameStateChanged((GameSnapshot) recibido);
-                    } 
-                    else if (recibido instanceof String && ui != null) {
-                        String msg = (String) recibido;
-                        if (msg.startsWith("ERROR:")) {
-                            ui.onError(msg.substring(6)); // Borramos la palabra "ERROR:"
-                        } else {
-                            System.out.println("\n[MENSAJE DEL SERVIDOR]: " + msg);
-                        }
-                    }
-                }
+            	while (true) {
+            	    Object recibido = entrada.readObject();
+            	    
+            	    if (recibido instanceof GameSnapshot && ui != null) {
+            	        ui.onGameStateChanged((GameSnapshot) recibido);
+            	    } 
+            	    else if (recibido instanceof String && ui != null) {
+            	        String msg = (String) recibido;
+            	        if (msg.startsWith("ERROR:")) {
+            	            ui.onError(msg.substring(6));
+            	        } 
+            	        else if (msg.startsWith("PLACED:")) {
+            	            int rem = Integer.parseInt(msg.substring(7));
+            	            ui.onShipPlaced(null, rem); // Desencadena el cartel de barco colocado
+            	        }
+            	        else if (msg.startsWith("SHOT_FIRED ")) {
+            	            String[] p = msg.split(" ");
+            	            Position pos = new Position(Integer.parseInt(p[1]), Integer.parseInt(p[2]));
+            	            ShotResult res = ShotResult.valueOf(p[3]);
+            	            boolean wasP1 = Boolean.parseBoolean(p[4]);
+            	            ui.onShotFired(pos, res, wasP1); // Desencadena el cartel de impacto/agua remoto
+            	        }
+            	    }
+            	}
             } catch (Exception e) {
                 System.out.println("\n[RED] El Host cerró la partida.");
                 System.exit(0);

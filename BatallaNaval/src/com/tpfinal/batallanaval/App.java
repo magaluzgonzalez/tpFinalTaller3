@@ -1,14 +1,14 @@
 package com.tpfinal.batallanaval;
 
-import com.tpfinal.batallanaval.UI.GameUIAdapter;
-import com.tpfinal.batallanaval.UI.SwingUI;
-import com.tpfinal.batallanaval.UI.MainMenuUI;
-import com.tpfinal.batallanaval.controller.*;
-
-import com.tpfinal.batallanaval.game.*;
-import com.tpfinal.batallanaval.model.GameConfig;
-import com.tpfinal.batallanaval.view.ConsoleUI;
-import com.tpfinal.batallanaval.network.*;
+//import com.tpfinal.batallanaval.UI.GameUIAdapter;
+//import com.tpfinal.batallanaval.UI.SwingUI;
+//import com.tpfinal.batallanaval.UI.MainMenuUI;
+//import com.tpfinal.batallanaval.controller.*;
+//
+//import com.tpfinal.batallanaval.game.*;
+//import com.tpfinal.batallanaval.model.GameConfig;
+//import com.tpfinal.batallanaval.view.ConsoleUI;
+//import com.tpfinal.batallanaval.network.*;
 
 //import java.util.Scanner;
 //
@@ -24,6 +24,14 @@ import com.tpfinal.batallanaval.network.*;
 //import java.awt.Component;
 //import java.awt.Dimension;
 
+import com.tpfinal.batallanaval.controller.*;
+import com.tpfinal.batallanaval.game.Game;
+import com.tpfinal.batallanaval.model.GameConfig;
+import com.tpfinal.batallanaval.network.NetworkClientController;
+import com.tpfinal.batallanaval.network.NetworkServer;
+import com.tpfinal.batallanaval.UI.GameUIAdapter;
+import com.tpfinal.batallanaval.UI.MainMenuUI;
+
 public class App {
     public static void main(String[] args) {
         javax.swing.SwingUtilities.invokeLater(() -> {
@@ -32,72 +40,71 @@ public class App {
     }
 
     private static void crearYMostrarMenu() {
-        // Instanciamos el objeto de la UI pasando como argumentos qué debe hacer cada botón
         MainMenuUI menu = new MainMenuUI(
             App::iniciarModoLocalPvP,
-            App::iniciarModoLocalIA,
+            App::iniciarModoLocalIA, 
             App::iniciarModoHost,
             App::iniciarModoCliente
         );
-        
         menu.mostrar();
     }
 
-    // --- MÉTODOS CON TU LÓGICA ORIGINAL (SIN CAMBIOS) ---
+    // --- MÉTODOS DE MODOS DE JUEGO OPTIMIZADOS ---
 
     private static void iniciarModoLocalPvP() {
-    	GameConfig config = GameConfig.createDefault();
+        GameConfig config = GameConfig.createDefault();
         Game game = new Game(config, "Jugador 1", "Jugador 2");
         PlayerController hotseatController = new HotseatController(game);
         
-        // 1. Creamos la ventana tonta
-        SwingUI vista = new SwingUI("Battleship - Local Hotseat");
-        
-        // 2. Creamos el adaptador que une el juego, el controlador y la ventana gráfica
-        GameUIAdapter adapter = new GameUIAdapter(hotseatController, config, null, vista);
+        // El adaptador ahora crea la SwingUI internamente de forma limpia
+        GameUIAdapter adapter = new GameUIAdapter(hotseatController, config, null);
         
         game.addListener(adapter);
         game.notifyListeners();
     }
 
     private static void iniciarModoLocalIA() {
-    	GameConfig config = GameConfig.createDefault();
+        GameConfig config = GameConfig.createDefault();
         Game game = new Game(config, "Humano", "Bot");
         PlayerController p1Controller = new LocalController(game, true);
         AIController bot = new AIController(game, false);
 
-        SwingUI vista = new SwingUI("Battleship - Versus IA");
-        // Pasamos 'true' en fixedPerspectiveP1 porque la cámara siempre es del humano
-        GameUIAdapter adapter = new GameUIAdapter(p1Controller, config, true, vista);
+        // El adaptador maneja la perspectiva fija en true para el Humano
+        GameUIAdapter adapter = new GameUIAdapter(p1Controller, config, true);
 
         game.addListener(adapter);
         game.addListener(bot);
         game.notifyListeners();
     }
-
+ 
     private static void iniciarModoHost() {
-        System.out.println("Iniciando Modo 3 desde la UI...");
+        System.out.println("Iniciando Servidor Battleship...");
         GameConfig config = GameConfig.createDefault();
         Game game = new Game(config, "Host (Tú)", "Cliente (Remoto)");
-        PlayerController localController = new LocalController(game, true);
-        ConsoleUI ui = new ConsoleUI(localController, config, true);
         
-        game.addListener(ui);
+        PlayerController localController = new LocalController(game, true);
+        
+        // Quitamos la creación de la vista que ensuciaba el flujo
+        GameUIAdapter adapter = new GameUIAdapter(localController, config, true);
+        
+        game.addListener(adapter);
+        
         NetworkServer server = new NetworkServer(game, 8080);
         server.startListeningInBackground();
         
         game.notifyListeners(); 
-        new Thread(ui::startInputLoop).start();
     }
 
     private static void iniciarModoCliente() {
-        System.out.println("Iniciando Modo 4 desde la UI...");
-        NetworkClientController netController = new NetworkClientController("127.0.0.1", 8080);
-        GameConfig config = GameConfig.createDefault();
-        ConsoleUI ui = new ConsoleUI(netController, config, false);
+        System.out.println("Conectando al Servidor...");
+        GameConfig config = GameConfig.createDefault(); 
         
-        netController.setUI(ui); 
-        new Thread(ui::startInputLoop).start();
+        NetworkClientController netController = new NetworkClientController("127.0.0.1", 8080);
+        
+        // Pasamos el controlador de red y la perspectiva fija en false (Jugador 2)
+        GameUIAdapter adapter = new GameUIAdapter(netController, config, false);
+        
+        netController.setUI(adapter);
     }
 }
 
