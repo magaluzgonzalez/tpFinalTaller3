@@ -41,7 +41,7 @@ public class App {
 
     private static void crearYMostrarMenu() {
         MainMenuUI menu = new MainMenuUI(
-            App::iniciarModoLocalPvP,
+            App::iniciarModoLocalPvP, 
             App::iniciarModoLocalIA, 
             App::iniciarModoHost,
             App::iniciarModoCliente

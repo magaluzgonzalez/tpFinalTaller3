@@ -5,17 +5,7 @@ import com.tpfinal.batallanaval.game.GameListener;
 import com.tpfinal.batallanaval.model.*;
 import com.tpfinal.batallanaval.view.ConsoleUI;
 
-import java.io.ByteArrayOutputStream;
-import java.io.PrintStream;
-import java.util.LinkedList;
-import java.util.Queue;
-import javax.swing.SwingUtilities;
-
-import com.tpfinal.batallanaval.controller.PlayerController;
-import com.tpfinal.batallanaval.game.GameListener;
-import com.tpfinal.batallanaval.model.*;
-import com.tpfinal.batallanaval.view.ConsoleUI;
-
+import javax.swing.Timer;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import javax.swing.SwingUtilities;
@@ -24,30 +14,116 @@ public class GameUIAdapter implements GameListener {
     private final ConsoleUI consoleUI; 
     private final SwingUI vistaGrafica;
     private final PlayerController controller;
+    private final GameConfig config;
+    private final Boolean fixedPerspectiveP1;
     private final PerspectiveManager perspectiveManager;
     
     private final ByteArrayOutputStream capturadorBuffer;
     private final PrintStream printStreamAlternativo;
     private final PrintStream standardOut;
-
-    // Guardamos el último snapshot recibido para poder refrescar la pantalla en cualquier evento
     private GameSnapshot ultimoSnapshot;
+
+    private boolean bloqueadoPorTransicion = false;
 
     public GameUIAdapter(PlayerController controller, GameConfig config, Boolean fixedPerspectiveP1) {
         this.controller = controller;
+        this.config = config;
+        this.fixedPerspectiveP1 = fixedPerspectiveP1;
 
-        this.vistaGrafica = new SwingUI("Battleship - Gráfica Integrada", config.getWidth(), config.getHeight());
+        this.vistaGrafica = new SwingUI("Battleship - Control", config.getWidth(), config.getHeight(), this::mapearClickMouse);
         this.consoleUI = new ConsoleUI(controller, config, fixedPerspectiveP1);
 
         this.capturadorBuffer = new ByteArrayOutputStream();
         this.printStreamAlternativo = new PrintStream(capturadorBuffer);
         this.standardOut = System.out;
 
-        this.vistaGrafica.setOnCommandSubmitted(this::procesarEntradaGrafica);
         this.perspectiveManager = new PerspectiveManager(config, fixedPerspectiveP1);
     }
 
-    // --- INTERCEPCIÓN DE BITÁCORA ---
+    private void mapearClickMouse(int x, int y, boolean esMiFlota, boolean esClicIzquierdo) {
+        if (ultimoSnapshot == null || bloqueadoPorTransicion) return;
+
+        // FASE 1: Colocación de barcos
+        if (ultimoSnapshot.state == GameState.PLACING_SHIPS) {
+            boolean leTocaColocarAP1 = (fixedPerspectiveP1 != null) ? fixedPerspectiveP1 : 
+                (ultimoSnapshot.player1Ships.size() < config.getShipCount());
+
+            if ((leTocaColocarAP1 && esMiFlota) || (!leTocaColocarAP1 && !esMiFlota)) {
+                Direction dir = esClicIzquierdo ? Direction.HORIZONTAL : Direction.VERTICAL;
+                ejecutarAccionYActualizarUI(() -> controller.attemptPlaceShip(x, y, dir));
+                forzarRefrescoVisual();
+            } else {
+                ejecutarAccionYActualizarUI(() -> System.out.println("❌ No podés colocar barcos en el tablero del rival."));
+            }
+            return;
+        }
+        
+        // FASE 2: Disparos
+        if (ultimoSnapshot.state == GameState.PLAYING && esClicIzquierdo) {
+            
+            if (fixedPerspectiveP1 != null) {
+                // --- MODO RED / IA ---
+                boolean miTurnoRed = (fixedPerspectiveP1 && ultimoSnapshot.isPlayer1Turn) || (!fixedPerspectiveP1 && !ultimoSnapshot.isPlayer1Turn);
+                boolean clickRadarRed = (fixedPerspectiveP1 && !esMiFlota) || (!fixedPerspectiveP1 && esMiFlota);
+
+                if (miTurnoRed) {
+                    if (clickRadarRed) {
+                        ejecutarAccionYActualizarUI(() -> controller.fireShot(x, y));
+                        forzarRefrescoVisual();
+                    } else {
+                        // AGREGADO: Alerta de autodisparo en modo Red
+                        ejecutarAccionYActualizarUI(() -> System.out.println("❌ ¡Disparo inválido! No podés dispararle a tu propia flota de defensa."));
+                    }
+                } else {
+                    ejecutarAccionYActualizarUI(() -> System.out.println("⚠️ Esperá, es el turno del enemigo remoto."));
+                }
+            } else {
+                // --- MODO HOTSEAT LOCAL (PVP) ---
+                boolean clickValidoLocal = (ultimoSnapshot.isPlayer1Turn && !esMiFlota) || (!ultimoSnapshot.isPlayer1Turn && esMiFlota);
+
+                if (clickValidoLocal) {
+                    // 1. CAPTURA CRÍTICA: Guardamos de quién es el turno ANTES del disparo
+                    final boolean turnoDelQueDisparo = ultimoSnapshot.isPlayer1Turn;
+                    
+                    // 2. Ejecutamos el tiro en el motor (esto cambia el turno internamente en el modelo)
+                    ejecutarAccionYActualizarUI(() -> controller.fireShot(x, y));
+                    
+                    // 3. Forzamos un repintado intermedio usando el turno viejo de forma manual
+                    // Esto hace que el casillero se pinte INSTANTÁNEAMENTE en azul o rojo sin cambiar de pantalla
+                    SwingUtilities.invokeLater(() -> {
+                        perspectiveManager.aplicarPerspectivaConTurnoFijo(ultimoSnapshot, vistaGrafica, turnoDelQueDisparo);
+                    });
+
+                    // 4. Si el juego ya terminó, no congelamos ni hacemos esperar a nadie
+                    if (ultimoSnapshot.state == GameState.FINISHED) {
+                        return;
+                    }
+
+                    // 5. Bloqueamos interacciones y abrimos la ventana de espera de 3 segundos
+                    bloqueadoPorTransicion = true;
+                    vistaGrafica.printLine("\n=========================================");
+                    vistaGrafica.printLine("⚠️ ¡TIRO REGISTRADO! CAMBIANDO DE JUGADOR...");
+                    vistaGrafica.printLine("Por favor, cdele la silla al siguiente jugador.");
+                    vistaGrafica.printLine("=========================================\n");
+
+                    Timer timer = new Timer(2000, e -> {
+                        bloqueadoPorTransicion = false; // Liberamos el mouse
+                        forzarRefrescoVisual();         // Recién ACÁ la pantalla rota y revela los barcos del otro
+                    });
+                    timer.setRepeats(false);
+                    timer.start();
+                    
+                } else {
+                    ejecutarAccionYActualizarUI(() -> System.out.println("❌ ¡Disparo inválido! No podés dispararle a tu propia flota de defensa."));
+                }
+            }
+        }
+    }
+    private void forzarRefrescoVisual() {
+        if (ultimoSnapshot != null) {
+            SwingUtilities.invokeLater(() -> perspectiveManager.aplicarPerspectiva(ultimoSnapshot, vistaGrafica));
+        }
+    }
 
     private synchronized void ejecutarAccionYActualizarUI(Runnable accionEventual) {
         System.setOut(printStreamAlternativo);
@@ -57,84 +133,29 @@ public class GameUIAdapter implements GameListener {
         } finally {
             System.setOut(standardOut);
         }
-
         String textoGenerado = capturadorBuffer.toString();
         capturadorBuffer.reset();
 
         if (!textoGenerado.trim().isEmpty()) {
-            SwingUtilities.invokeLater(() -> {
-                // Imprime de forma fluida el mensaje de bitácora (Ej: ">>> Jugador 1 dispara...")
-                vistaGrafica.printLine(textoGenerado.trim());
-            });
+            SwingUtilities.invokeLater(() -> vistaGrafica.printLine(textoGenerado.trim()));
         }
     }
-
-    // --- REFRESCO ESTRICTO DE BOTONES DE COLORES ---
-
-    private void forzarRefrescoVisual() {
-        if (ultimoSnapshot != null) {
-            SwingUtilities.invokeLater(() -> {
-                perspectiveManager.aplicarPerspectiva(ultimoSnapshot, vistaGrafica);
-            });
-        }
-    }
-
-    // --- DELEGACIÓN DE EVENTOS DEL MOTOR ---
 
     @Override 
     public void onGameStateChanged(GameSnapshot snapshot) { 
-        this.ultimoSnapshot = snapshot; // Guardamos la foto actual del juego
-        // 1. Limpiamos la pantalla de texto solo en cambios de estado mayores si querés, 
-        // o dejamos que acumule el historial. Para que no se borre el historial, no limpiamos a ciegas.
+        this.ultimoSnapshot = snapshot; 
         ejecutarAccionYActualizarUI(() -> consoleUI.onGameStateChanged(snapshot)); 
-        forzarRefrescoVisual(); // REFRESCO GARANTIZADO
+        if (!bloqueadoPorTransicion) {
+            forzarRefrescoVisual(); 
+        }
     }
 
     @Override 
     public void onShipPlaced(Ship ship, int remainingCount) { 
         ejecutarAccionYActualizarUI(() -> consoleUI.onShipPlaced(ship, remainingCount)); 
-        // Si tu snapshot del juego cambia internamente al poner un barco, forzamos actualización
         forzarRefrescoVisual();
     }
 
-    @Override 
-    public void onError(String errorMessage) { 
-        ejecutarAccionYActualizarUI(() -> consoleUI.onError(errorMessage)); 
-    }
-
-    @Override 
-    public void onShotFired(Position pos, ShotResult result, boolean wasPlayer1) { 
-        ejecutarAccionYActualizarUI(() -> consoleUI.onShotFired(pos, result, wasPlayer1)); 
-        // Al disparar no limpiamos la pantalla de texto, dejamos que se lea el "¡AGUA!" o "🔥 ¡IMPACTO!"
-    }
-
-private void procesarEntradaGrafica(String input) {
-    if (input.equalsIgnoreCase("salir")) { 
-        vistaGrafica.dispose(); 
-        return; 
-    }
-    
-    try {
-        ejecutarAccionYActualizarUI(() -> {
-            String[] parts = input.split(" ");
-            int x = Integer.parseInt(parts[0]);
-            int y = Integer.parseInt(parts[1]);
-            
-            if (parts.length >= 3) {
-                // Si viene con tres partes (Ej: "2 3 H"), es porque está colocando un barco
-                Direction dir = parts[2].toUpperCase().startsWith("H") ? Direction.HORIZONTAL : Direction.VERTICAL;
-                controller.attemptPlaceShip(x, y, dir); 
-            } else {
-                // Si vienen solo coordenadas (Ej: "2 3"), es un disparo
-                controller.fireShot(x, y);
-            }
-        });
-        
-        // Forzamos el refresco de los botones después de procesar el comando manual
-        forzarRefrescoVisual();
-        
-    } catch (Exception e) {
-        ejecutarAccionYActualizarUI(() -> System.out.println("❌ Formato inválido. Ej: '2 3' o '2 3 H'"));
-    	}
-	}
+    @Override public void onError(String errorMessage) { ejecutarAccionYActualizarUI(() -> consoleUI.onError(errorMessage)); }
+    @Override public void onShotFired(Position pos, ShotResult result, boolean wasPlayer1) { ejecutarAccionYActualizarUI(() -> consoleUI.onShotFired(pos, result, wasPlayer1)); }
 }
