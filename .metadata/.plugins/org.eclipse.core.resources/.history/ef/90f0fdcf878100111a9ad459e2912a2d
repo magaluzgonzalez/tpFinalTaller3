@@ -1,0 +1,55 @@
+package com.tpfinal.batallanaval.view;
+
+
+import javax.swing.JOptionPane;
+import javax.swing.JFrame;
+import java.awt.Component;
+
+public class OptionManager {
+
+    // 1. Ahora el método recibe también tu menú original
+    public static void backToMainMenu(JFrame actualScreen, MainMenuUI mainMenu) {
+        int answer = JOptionPane.showConfirmDialog(
+            actualScreen,
+            "¿Seguro que querés abandonar la partida actual y volver al menú?",
+            "Salir de la partida",
+            JOptionPane.YES_NO_OPTION,
+            JOptionPane.QUESTION_MESSAGE
+        );
+
+        if (answer == JOptionPane.YES_OPTION) {
+            ejecutarTransicionMenu(actualScreen, mainMenu);
+        }
+    }
+
+    // 2. Este también recibe el menú para el final de la partida
+    public static void showGameOver(JFrame actualScreen, String winnerMessage, MainMenuUI menuPrincipal) {
+        String[] opciones = {"Volver al Menú Principal", "Salir del Juego"};
+        
+        int eleccion = JOptionPane.showOptionDialog(
+            actualScreen,
+            "🎉 ¡PARTIDA TERMINADA! 🎉\n" + winnerMessage + "\n\n¿Qué deseas hacer ahora?",
+            "Fin del Juego",
+            JOptionPane.DEFAULT_OPTION,
+            JOptionPane.INFORMATION_MESSAGE,
+            null,
+            opciones,
+            opciones[0]
+        );
+
+        if (eleccion == 0) {
+            ejecutarTransicionMenu(actualScreen, menuPrincipal);
+        } else {
+            System.exit(0); 
+        }
+    }
+
+    // 3. Acá usamos directamente tu método .mostrar() sin crear nada nuevo
+    private static void ejecutarTransicionMenu(JFrame ventanaActual, MainMenuUI menuPrincipal) {
+        ventanaActual.dispose(); // Cierra la partida
+        
+        if (menuPrincipal != null) {
+            menuPrincipal.mostrar(); // 🚀 USA TU MÉTODO DIRECTO, SIN REPETIR CÓDIGO
+        }
+    }
+}

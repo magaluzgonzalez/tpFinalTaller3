@@ -87,7 +87,7 @@ public class Game {
         
         notifyShipPlaced(newShip, remaining); // <-- AVISAMOS DEL ÉXITO
         
-        checkIfReadyToPlay(); 
+        checkIfReadyToPlay();  
         notifyListeners(); // Actualizamos la pantalla
         return true;
     }
@@ -151,4 +151,6 @@ public class Game {
     public GameConfig getConfig() { return config; }
 	public Player getPlayer1() { return player1; }
 	public Player getPlayer2() { return player2; }
+	
+
 }

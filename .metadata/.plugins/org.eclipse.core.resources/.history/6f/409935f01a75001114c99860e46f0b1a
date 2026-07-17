@@ -1,0 +1,66 @@
+package com.tpfinal.batallanaval.view;
+
+
+import javax.swing.JOptionPane;
+import javax.swing.JFrame;
+import java.awt.Component;
+
+public class OptionManager {
+
+    // Método para salir de la partida actual en cualquier momento y volver al menú
+    public static void volverAlMenuPrincipal(JFrame ventanaActual) {
+        int respuesta = JOptionPane.showConfirmDialog(
+            ventanaActual,
+            "¿Seguro que querés abandonar la partida actual y volver al menú?",
+            "Salir de la partida",
+            JOptionPane.YES_NO_OPTION,
+            JOptionPane.QUESTION_MESSAGE
+        );
+
+        if (respuesta == JOptionPane.YES_OPTION) {
+            ejecutarTransicionMenu(ventanaActual);
+        }
+    }
+
+    // Método que salta automáticamente cuando el juego termina (Ganaste / Perdiste)
+    public static void mostrarFinDePartida(JFrame ventanaActual, String mensajeGanador) {
+        // Armamos las opciones del botón personalizado
+        String[] opciones = {"Volver al Menú Principal", "Salir del Juego"};
+        
+        int eleccion = JOptionPane.showOptionDialog(
+            ventanaActual,
+            "🎉 ¡PARTIDA TERMINADA! 🎉\n" + mensajeGanador + "\n\n¿Qué deseas hacer ahora?",
+            "Fin del Juego",
+            JOptionPane.DEFAULT_OPTION,
+            JOptionPane.INFORMATION_MESSAGE,
+            null,
+            opciones,
+            opciones[0]
+        );
+
+        if (eleccion == 0) {
+            ejecutarTransicionMenu(ventanaActual);
+        } else {
+            // Cerrar el proceso por completo si elige salir
+            System.exit(0); 
+        }
+    }
+
+ // Lógica limpia para cerrar la ventana del juego y reabrir el menú principal
+    private static void ejecutarTransicionMenu(JFrame ventanaActual) {
+        // 1. Cerramos y destruimos la ventana de la partida actual para liberar memoria
+        ventanaActual.dispose();
+        
+        // 2. ¡REABRIMOS TU MENÚ PRINCIPAL!
+        // Usamos invokeLater para asegurarnos de que Swing levante la nueva interfaz de forma segura
+        javax.swing.SwingUtilities.invokeLater(() -> {
+            try {
+                // Instanciamos tu clase del menú principal para que aparezca en pantalla
+                new MainMenuUI(null, null, null, null).setVisible(true);
+                System.out.println("🔄 Regresaste al Menú Principal con éxito.");
+            } catch (Exception ex) {
+                System.err.println("❌ Error al intentar abrir el MainMenuUI: " + ex.getMessage());
+            }
+        });
+    }
+}

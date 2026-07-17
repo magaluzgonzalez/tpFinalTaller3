@@ -20,7 +20,7 @@ public class CheckboxButton extends JButton {
         setFocusPainted(false); 
         setOpaque(true);
         setBorder(javax.swing.BorderFactory.createLineBorder(java.awt.Color.GRAY, 1));
-        setEstado(StatusCell.VACIO);
+        setStatus(StatusCell.EMPTY);
     }
 
     public int getXCoord() {
@@ -31,10 +31,10 @@ public class CheckboxButton extends JButton {
         return yCoord;
     }
 
-    public void setEstado(StatusCell status) {
+    public void setStatus(StatusCell status) {
         setBackground(status.getColor());
         // Deshabilitar visualmente si ya fue atacado o interactuado para dar feedback de UI
-        if (status == StatusCell.AGUA || status == StatusCell.IMPACTO) {
+        if (status == StatusCell.WATER || status == StatusCell.IMPACT) {
             setEnabled(false);
         } else {
             setEnabled(true);

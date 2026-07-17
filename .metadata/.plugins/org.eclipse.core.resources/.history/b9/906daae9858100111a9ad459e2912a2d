@@ -1,0 +1,115 @@
+package com.tpfinal.batallanaval.view;
+
+import javax.swing.*;
+import javax.swing.border.EmptyBorder;
+
+import com.tpfinal.batallanaval.UI.BoardPanel;
+import com.tpfinal.batallanaval.UI.StatusCell;
+
+import java.awt.*;
+import java.util.function.BiConsumer;
+
+public class SwingUI extends JFrame {
+    private static final long serialVersionUID = 1L;
+    private JTextArea terminalOutput;
+    
+    private BoardPanel panelMyFleet;
+    private BoardPanel panelRadar; 
+    private JLabel lblMyFleetTitle;
+    private JLabel lblRadarTitle;
+
+    // 🛠️ MODIFICADO: El constructor ahora recibe también la referencia de tu MainMenuUI
+    public SwingUI(String titulo, int columnas, int filas, MouseClickDelegate clickDelegate, MainMenuUI menuPrincipal) {
+        setTitle(titulo);
+        initUI(columnas, filas, clickDelegate, menuPrincipal); // <-- Se lo pasamos al init
+    } 
+
+    // 🛠️ MODIFICADO: Agregamos el parámetro acá para poder usarlo adentro del botón
+    private void initUI(int columnas, int filas, MouseClickDelegate clickDelegate, MainMenuUI menuPrincipal) {
+        setSize(900, 700); 
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setLocationRelativeTo(null);
+
+        JPanel mainPanel = new JPanel(new BorderLayout(10, 10));
+        mainPanel.setBackground(new Color(10, 25, 47));
+
+        // =========================================================================
+        // 🛠️ ¡BOTÓN DE VOLVER AL MENÚ ACTUALIZADO!
+        // =========================================================================
+        JButton btnVolver = new JButton("🚪 Abandonar Partida y Volver al Menú");
+        btnVolver.setFont(new Font("SansSerif", Font.BOLD, 12));
+        btnVolver.setBackground(new Color(200, 50, 50)); 
+        btnVolver.setForeground(Color.WHITE);
+        btnVolver.setFocusPainted(false);
+
+        // 🔌 ENGANCHE: Ahora le pasamos "this" (la ventana de la partida) y "menuPrincipal" (tu menú original)
+        btnVolver.addActionListener(e -> {
+            OptionManager.volverAlMenuPrincipal(this, menuPrincipal);
+        });
+
+        mainPanel.add(btnVolver, BorderLayout.NORTH);
+        // =========================================================================
+
+        // Terminal bitácora (Idéntica)
+        terminalOutput = new JTextArea();
+        terminalOutput.setEditable(false);  
+        terminalOutput.setBackground(Color.WHITE); 
+        terminalOutput.setFont(new Font("Monospaced", Font.PLAIN, 12)); 
+        terminalOutput.setForeground(Color.BLACK);
+        
+        JScrollPane scrollPane = new JScrollPane(terminalOutput);
+        scrollPane.setPreferredSize(new Dimension(850, 200)); 
+        mainPanel.add(scrollPane, BorderLayout.SOUTH); 
+
+        // Contenedor de tableros (Idéntico)
+        JPanel panelContenedorTableros = new JPanel(new GridLayout(1, 2, 20, 0));
+        
+        panelMyFleet = new BoardPanel(columnas, filas, true, (btn, isLeft) -> {
+            clickDelegate.onGridClicked(btn.getXCoord(), btn.getYCoord(), true, isLeft);
+        });
+
+        panelRadar = new BoardPanel(columnas, filas, true, (btn, isLeft) -> {
+            clickDelegate.onGridClicked(btn.getXCoord(), btn.getYCoord(), false, isLeft);
+        }); 
+
+        lblMyFleetTitle = new JLabel("", SwingConstants.CENTER);
+        lblRadarTitle = new JLabel("", SwingConstants.CENTER);
+
+        panelContenedorTableros.add(crearContenedorConTitulo(lblMyFleetTitle, panelMyFleet));
+        panelContenedorTableros.add(crearContenedorConTitulo(lblRadarTitle, panelRadar));
+        
+        mainPanel.add(panelContenedorTableros, BorderLayout.CENTER);
+
+        add(mainPanel);
+        setVisible(true);
+    } 
+
+    private JPanel crearContenedorConTitulo(JLabel labelTitulo, BoardPanel tablero) {
+        JPanel contenedor = new JPanel(new BorderLayout(5, 5));
+        contenedor.setOpaque(true);
+        contenedor.setBackground(new Color(10, 25, 47));
+        labelTitulo.setFont(new Font("SansSerif", Font.BOLD, 12));
+        labelTitulo.setForeground(Color.WHITE); 
+        contenedor.add(labelTitulo, BorderLayout.NORTH);
+        contenedor.add(tablero, BorderLayout.CENTER);
+        return contenedor;
+    }
+
+    public void actualizarTitulos(String tituloFlota, String tituloRadar) {
+        lblMyFleetTitle.setText(tituloFlota);
+        lblRadarTitle.setText(tituloRadar);
+    }
+
+    public void limpiarPantalla() { terminalOutput.setText(""); }
+    public void printLine(String text) { 
+        terminalOutput.append(text + "\n"); 
+        terminalOutput.setCaretPosition(terminalOutput.getDocument().getLength());
+    }
+    
+    public void updateMyFleetCell(int x, int y, StatusCell status) { panelMyFleet.updateCell(x, y, status); }
+    public void updateRadarGrid(int x, int y, StatusCell status) { panelRadar.updateCell(x, y, status); }
+
+    public interface MouseClickDelegate {
+        void onGridClicked(int x, int y, boolean esMiFlota, boolean esClicIzquierdo);
+    }
+}

@@ -1,0 +1,170 @@
+package com.tpfinal.batallanaval.view;
+
+import com.tpfinal.batallanaval.UI.PerspectiveManager;
+import com.tpfinal.batallanaval.controller.PlayerController;
+import com.tpfinal.batallanaval.game.GameListener;
+import com.tpfinal.batallanaval.model.*;
+import javax.swing.Timer;
+import javax.swing.SwingUtilities;
+
+public class GraphicUI implements GameListener {
+    
+    private final PlayerController controller; 
+    private final GameConfig config;
+    private final Boolean fixedPerspectiveP1;
+    private final PerspectiveManager perspectiveManager;
+    
+    private final SwingUI vistaGrafica; 
+    private final ConsoleUI consoleUI; // Nuestra central de texto
+    private GameSnapshot ultimoSnapshot;
+    private boolean bloqueadoPorTransicion = false;
+
+ // --- Constructor Unificado ---
+    public GraphicUI(PlayerController controller, GameConfig config, Boolean fixedPerspectiveP1) {
+        this.controller = controller;
+        this.config = config;
+        this.fixedPerspectiveP1 = fixedPerspectiveP1;
+
+        // 1. Primero creamos la ventana de Swing
+        this.vistaGrafica = new SwingUI("Battleship - Control", config.getWidth(), config.getHeight(), this::mapearClickMouse);
+        this.perspectiveManager = new PerspectiveManager(config, fixedPerspectiveP1);
+        
+        // 2. Le pasamos la vistaGrafica a ConsoleUI para que dibuje adentro de ella
+        this.consoleUI = new ConsoleUI(controller, config, fixedPerspectiveP1, this.vistaGrafica);
+    }
+
+    private void mapearClickMouse(int x, int y, boolean esMiFlota, boolean esClicIzquierdo) {
+        if (ultimoSnapshot == null || bloqueadoPorTransicion) return;
+
+        // FASE 1: Colocación de barcos
+        if (ultimoSnapshot.state == GameState.PLACING_SHIPS) {
+            boolean leTocaColocarAP1 = (fixedPerspectiveP1 != null) ? fixedPerspectiveP1 : 
+                (ultimoSnapshot.player1Ships.size() < config.getShipCount());
+
+            if ((leTocaColocarAP1 && esMiFlota) || (!leTocaColocarAP1 && !esMiFlota)) {
+                Direction dir = esClicIzquierdo ? Direction.HORIZONTAL : Direction.VERTICAL;
+                
+                // Llamamos directo al controlador, permitiendo que System.out funcione normal
+                controller.attemptPlaceShip(x, y, dir);
+                forzarRefrescoVisual();
+            } else {
+            	vistaGrafica.printLine("❌ No podés colocar barcos en el tablero del rival.");
+            }
+            return;
+        }
+        
+        // FASE 2: Disparos
+        if (ultimoSnapshot.state == GameState.PLAYING && esClicIzquierdo) {
+            if (fixedPerspectiveP1 != null) {
+                // --- MODO RED / IA ---
+                boolean miTurnoRed = (fixedPerspectiveP1 && ultimoSnapshot.isPlayer1Turn) || (!fixedPerspectiveP1 && !ultimoSnapshot.isPlayer1Turn);
+                boolean clickRadarRed = (fixedPerspectiveP1 && !esMiFlota) || (!fixedPerspectiveP1 && esMiFlota);
+
+                if (miTurnoRed) {
+                    if (clickRadarRed) {
+                        controller.fireShot(x, y);
+                        forzarRefrescoVisual();
+                    } else {
+                    	vistaGrafica.printLine("❌ ¡Disparo inválido! No podés dispararle a tu propia flota.");
+                    }
+                } else {
+                	vistaGrafica.printLine("⚠️ Esperá, es el turno del enemigo remoto.");
+                }
+            } else {
+            	// --- MODO HOTSEAT LOCAL (PVP) ---
+                boolean clickValidoLocal = (ultimoSnapshot.isPlayer1Turn && !esMiFlota) || (!ultimoSnapshot.isPlayer1Turn && esMiFlota);
+
+                if (clickValidoLocal) {
+                    // Solo mandamos el tiro. El motor procesará si es HIT, MISS o SUNK
+                    controller.fireShot(x, y);
+                } else {
+                    vistaGrafica.printLine("❌ ¡Disparo inválido! No podés dispararle a tu propia flota.");
+                }
+            }
+        }
+    }
+
+    private void forzarRefrescoVisual() {
+        if (ultimoSnapshot != null) {
+            SwingUtilities.invokeLater(() -> perspectiveManager.aplicarPerspectiva(ultimoSnapshot, vistaGrafica));
+        }
+    }
+
+    // =========================================================================
+    // --- PASAMANOS DIRECTO A CONSOLE_UI ---
+    // =========================================================================
+
+    @Override
+    public void onGameStateChanged(GameSnapshot snapshot) {
+        this.ultimoSnapshot = snapshot;
+        this.consoleUI.onGameStateChanged(snapshot);
+
+        // 🔌 ENGACHE FIN DE JUEGO: Si el estado cambia a terminado, gatillamos el NavigationManager
+        if (snapshot.state == GameState.FINISHED) {
+            String ganador = snapshot.isPlayer1Turn ? "Ganador: JUGADOR 1" : "Ganador: JUGADOR 2";
+            
+            // Usamos invokeLater para que pinte el último tiro antes de clavar el cartel de victoria
+            SwingUtilities.invokeLater(() -> {
+               OptionManager.mostrarFinDePartida(vistaGrafica, ganador);
+            });
+            return;
+        }
+
+        if (!bloqueadoPorTransicion) {
+            forzarRefrescoVisual();
+        }
+    }
+
+    @Override
+    public void onShipPlaced(Ship ship, int remainingCount) {
+        this.consoleUI.onShipPlaced(ship, remainingCount);
+    }
+
+    @Override
+    public void onShotFired(Position pos, ShotResult result, boolean isPlayer1Turn) {
+        // 1. Esto dispara ConsoleUI, que ahora tiene la lógica unificada de mensajes
+        this.consoleUI.onShotFired(pos, result, isPlayer1Turn);
+
+        if (ultimoSnapshot != null && ultimoSnapshot.state == GameState.FINISHED) {
+            return;
+        }
+
+        // --- MODO HOTSEAT LOCAL (PVP) ---
+        if (fixedPerspectiveP1 == null) {
+            if (result == ShotResult.MISS) {
+                final boolean turnoDelQueDisparo = ultimoSnapshot.isPlayer1Turn;
+
+                // Pintamos el agua al toque en la pantalla actual
+                SwingUtilities.invokeLater(() -> {
+                    perspectiveManager.aplicarPerspectivaConTurnoFijo(ultimoSnapshot, vistaGrafica, turnoDelQueDisparo);
+                });
+
+                bloqueadoPorTransicion = true;
+                vistaGrafica.printLine("\n=========================================");
+                vistaGrafica.printLine("💦 ¡AGUA! CAMBIO DE TURNO...");
+                vistaGrafica.printLine("Por favor, cedele la silla al siguiente jugador.");
+                vistaGrafica.printLine("=========================================\n");
+
+                Timer timer = new Timer(2000, e -> {
+                    bloqueadoPorTransicion = false; 
+                    forzarRefrescoVisual(); // Rota la pantalla
+                });
+                timer.setRepeats(false);
+                timer.start();
+            } else {
+                // HIT o SUNK en Local: Solo refrescamos los colores al toque, el cartel ya lo puso ConsoleUI
+                forzarRefrescoVisual();
+            }
+        } 
+        // --- MODO RED / IA ---
+        else {
+            // En red no hay delay de "cambio de silla", el tiro impacta e impacta al toque
+            forzarRefrescoVisual();
+        }
+    }
+
+    @Override
+    public void onError(String errorMessage) {
+        this.consoleUI.onError(errorMessage);
+    }
+}

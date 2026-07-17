@@ -1,55 +1,184 @@
 package com.tpfinal.batallanaval.view;
 
-import com.tpfinal.batallanaval.controller.LocalController;
+import com.tpfinal.batallanaval.UI.PerspectiveManager;
+import com.tpfinal.batallanaval.controller.PlayerController;
 import com.tpfinal.batallanaval.game.GameListener;
-import com.tpfinal.batallanaval.model.Direction;
-import com.tpfinal.batallanaval.model.GameSnapshot;
-import com.tpfinal.batallanaval.model.Position;
-import com.tpfinal.batallanaval.model.Ship;
-import com.tpfinal.batallanaval.model.ShotResult;
+import com.tpfinal.batallanaval.model.*;
+import javax.swing.Timer;
+import javax.swing.SwingUtilities;
 
 public class GraphicUI implements GameListener {
-    private LocalController controller;
-
-    // Tu compañero recibe el controlador cuando construyen su interfaz
-    public GraphicUI(LocalController controller) {
-        this.controller = controller;
-        //construirBotones(); // Su código de Java Swing / FX
-    }
-
-    // --- CÓMO ENVÍA INPUTS ---
     
-    // Su botón de la grilla de colocación
-    private void alHacerClicParaColocar(int gridX, int gridY, Direction dirSeleccionada) {
-        controller.attemptPlaceShip(gridX, gridY, dirSeleccionada);
+    private final PlayerController controller; 
+    private final GameConfig config;
+    private final Boolean fixedPerspectiveP1;
+    private final PerspectiveManager perspectiveManager;
+    
+    private final SwingUI graphicView; 
+    private final ConsoleUI consoleUI; 
+    private GameSnapshot lastSnapshot;
+    private boolean blockedByTransition = false;
+    
+    // 🔌 AGREGADO: Guardamos la referencia del menú original para el OptionManager
+    private final MainMenuUI mainMenu; 
+
+    // --- Constructor Modificado ---
+    public GraphicUI(PlayerController controller, GameConfig config, Boolean fixedPerspectiveP1, MainMenuUI mainMenu) {
+        this.controller = controller;
+        this.config = config;
+        this.fixedPerspectiveP1 = fixedPerspectiveP1;
+        this.mainMenu = mainMenu; // <-- Guardamos el menú original
+
+        // 1. Primero creamos la ventana de Swing
+        this.graphicView = new SwingUI("Battleship - Control", config.getWidth(), config.getHeight(), this::mapMouseClick, mainMenu);
+        this.perspectiveManager = new PerspectiveManager(config, fixedPerspectiveP1);
+        
+        // 2. Le pasamos la vistaGrafica a ConsoleUI para que dibuje adentro de ella
+        this.consoleUI = new ConsoleUI(controller, config, fixedPerspectiveP1, this.graphicView);
     }
 
-    // Su botón del radar de ataque
-    private void alHacerClicParaAtacar(int gridX, int gridY) {
-        controller.fireShot(gridX, gridY);
+    private void mapMouseClick(int x, int y, boolean isMyFleet, boolean isLeftClick) {
+        if (lastSnapshot == null || blockedByTransition) return;
+
+        // FASE 1: Colocación de barcos
+        if (lastSnapshot.state == GameState.PLACING_SHIPS) {
+            boolean itsP1turnToPlace = (fixedPerspectiveP1 != null) ? fixedPerspectiveP1 : 
+                (lastSnapshot.player1Ships.size() < config.getShipCount());
+
+            if ((itsP1turnToPlace && isMyFleet) || (!itsP1turnToPlace && !isMyFleet)) {
+                Direction dir = isLeftClick ? Direction.HORIZONTAL : Direction.VERTICAL;
+                
+                controller.attemptPlaceShip(x, y, dir);
+                forceVisualRefresh();
+            } else {
+            	graphicView.printLine("❌ No podés colocar barcos en el tablero del rival.");
+            }
+            return;
+        }
+        
+        // FASE 2: Disparos
+        if (lastSnapshot.state == GameState.PLAYING && isLeftClick) {
+            if (fixedPerspectiveP1 != null) {
+                // --- MODO RED / IA ---
+                boolean isMyTurnRed = (fixedPerspectiveP1 && lastSnapshot.isPlayer1Turn) || (!fixedPerspectiveP1 && !lastSnapshot.isPlayer1Turn);
+                boolean clickRadarRed = (fixedPerspectiveP1 && !isMyFleet) || (!fixedPerspectiveP1 && isMyFleet);
+
+                if (isMyTurnRed) {
+                    if (clickRadarRed) {
+                        controller.fireShot(x, y);
+                        forceVisualRefresh();
+                    } else {
+                    	graphicView.printLine("❌ ¡Disparo inválido! No podés dispararle a tu propia flota.");
+                    }
+                } else {
+                	graphicView.printLine("⚠️ Esperá, es el turno del enemigo remoto.");
+                }
+            } else {
+            	// --- MODO HOTSEAT LOCAL (PVP) ---
+                boolean validateClickLocal = (lastSnapshot.isPlayer1Turn && !isMyFleet) || (!lastSnapshot.isPlayer1Turn && isMyFleet);
+
+                if (validateClickLocal) {
+                    controller.fireShot(x, y);
+                } else {
+                    graphicView.printLine("❌ ¡Disparo inválido! No podés dispararle a tu propia flota.");
+                }
+            }
+        }
     }
 
-	@Override
-	public void onGameStateChanged(GameSnapshot snapshot) {
-		// TODO Auto-generated method stub
-		
-	}
+    private void forceVisualRefresh() {
+        if (lastSnapshot != null) {
+            SwingUtilities.invokeLater(() -> perspectiveManager.applyPerspective(lastSnapshot, graphicView));
+        }
+    }
 
-	@Override
-	public void onShipPlaced(Ship ship, int remainingCount) {
-		// TODO Auto-generated method stub
-		
-	}
+    // =========================================================================
+    // --- PASAMANOS DIRECTO A CONSOLE_UI ---
+    // =========================================================================
 
-	@Override
-	public void onShotFired(Position pos, ShotResult result, boolean isPlayer1Turn) {
-		// TODO Auto-generated method stub
-		
-	}
+    @Override
+    public void onGameStateChanged(GameSnapshot snapshot) {
+        this.lastSnapshot = snapshot;
+        this.consoleUI.onGameStateChanged(snapshot);
 
-	@Override
-	public void onError(String errorMessage) {
-		// TODO Auto-generated method stub
-		
-	}
+        // 🔌 MODIFICADO: Ahora le pasamos la "vistaGrafica", el "ganador" y el "menuPrincipal" sin instanciar nada nuevo
+        if (snapshot.state == GameState.FINISHED) {
+            String winner = snapshot.isPlayer1Turn ? "Ganador: JUGADOR 1" : "Ganador: JUGADOR 2";
+            
+            SwingUtilities.invokeLater(() -> {
+               OptionManager.showGameOver(graphicView, winner, mainMenu);
+            });
+            return;
+        }
+
+        if (!blockedByTransition) {
+            forceVisualRefresh();
+        }
+    }
+
+    @Override
+    public void onShipPlaced(Ship ship, int remainingCount) {
+        this.consoleUI.onShipPlaced(ship, remainingCount);
+    }
+
+    @Override
+    public void onShotFired(Position pos, ShotResult result, boolean isPlayer1Turn) {
+        this.consoleUI.onShotFired(pos, result, isPlayer1Turn);
+
+        if (lastSnapshot != null && lastSnapshot.state == GameState.FINISHED) {
+            return;
+        }
+
+        // --- MODO HOTSEAT LOCAL (PVP) ---
+        if (fixedPerspectiveP1 == null) {
+            if (result == ShotResult.MISS) {
+                final boolean turnOfTheWhoFired = lastSnapshot.isPlayer1Turn;
+
+                SwingUtilities.invokeLater(() -> {
+                    perspectiveManager.applyPerspectiveWithFixedTurn(lastSnapshot, graphicView, turnOfTheWhoFired);
+                });
+
+                blockedByTransition = true;
+                graphicView.printLine("\n=========================================");
+                graphicView.printLine("💦 ¡AGUA! CAMBIO DE TURNO...");
+                graphicView.printLine("Por favor, cedele la silla al siguiente jugador.");
+                graphicView.printLine("=========================================\n");
+
+                Timer timer = new Timer(2000, e -> {
+                    blockedByTransition = false; 
+                    forceVisualRefresh(); 
+                });
+                timer.setRepeats(false);
+                timer.start();
+            } else {
+                forceVisualRefresh();
+            }
+        } 
+        else {
+            forceVisualRefresh();
+        }
+    }
+
+    @Override
+    public void onError(String errorMessage) {
+        // Se lo pasa a la consola de texto por las dudas
+        if (this.consoleUI != null) {
+            this.consoleUI.onError(errorMessage);
+        }
+        
+        // 🚨 SI VIENE DE LA RED POR DESCONEXIÓN: Clavamos el cartelazo flotante
+        if (errorMessage != null && errorMessage.startsWith("DESCONEXION:")) {
+            String cleanMessage = errorMessage.substring(12).trim(); 
+            
+            // Levantamos el pop-up de forma segura en el hilo de Swing
+            javax.swing.SwingUtilities.invokeLater(() -> {
+                OptionManager.showGameOver(
+                    this.graphicView, 
+                    "❌ " + cleanMessage, 
+                    this.mainMenu
+                );
+            });
+        }
+   
+    }
 }

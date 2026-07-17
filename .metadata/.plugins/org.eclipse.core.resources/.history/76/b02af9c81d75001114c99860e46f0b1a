@@ -1,0 +1,124 @@
+package com.tpfinal.batallanaval.view;
+
+import com.tpfinal.batallanaval.controller.PlayerController;
+import com.tpfinal.batallanaval.game.GameListener;
+import com.tpfinal.batallanaval.model.*;
+
+public class ConsoleUI implements GameListener {
+    private final PlayerController controller;
+    private final GameConfig config; 
+    private GameSnapshot currentSnapshot;
+    private final Boolean fixedPerspectiveP1; 
+    
+    // 🔌 CONEXIÓN: Guardamos la referencia a la ventana gráfica
+    private final SwingUI vistaGrafica; 
+    
+    private boolean cartelJuegoIniciadoMostrado = false;
+
+    // Pasamos SwingUI por el constructor
+    public ConsoleUI(PlayerController controller, GameConfig config, Boolean fixedPerspectiveP1, SwingUI vistaGrafica) {
+        this.controller = controller;
+        this.config = config;
+        this.fixedPerspectiveP1 = fixedPerspectiveP1;
+        this.vistaGrafica = vistaGrafica; // <-- Guardamos la ventana
+    }
+ 
+    @Override
+    public void onGameStateChanged(GameSnapshot snapshot) {
+        this.currentSnapshot = snapshot;
+        
+        boolean viewAsP1 = (fixedPerspectiveP1 != null) ? fixedPerspectiveP1 : 
+            (snapshot.state == GameState.PLACING_SHIPS ? (snapshot.player1Ships.size() < config.getShipCount()) : snapshot.isPlayer1Turn);
+
+        // --- FASE 1: COLOCACIÓN ---
+        if (snapshot.state == GameState.PLACING_SHIPS) {
+            vistaGrafica.printLine("\n=========================================");
+            vistaGrafica.printLine("ESTADO: COLOCACIÓN DE BARCOS");
+            vistaGrafica.printLine("-> Coloca tus piezas en la botonera gráfica.");
+            vistaGrafica.printLine("-> Turno de colocación: " + (viewAsP1 ? "JUGADOR 1" : "JUGADOR 2"));
+        }
+        // --- FASE 2: JUGANDO ---
+        else if (snapshot.state == GameState.PLAYING) {
+            if (!cartelJuegoIniciadoMostrado) {
+                vistaGrafica.printLine("\n=========================================");
+                vistaGrafica.printLine("🎉 ¡YA ESTÁN TODOS LOS BARCOS PUESTOS, A JUGAR! 🎉");
+                vistaGrafica.printLine("========================================="); 
+                cartelJuegoIniciadoMostrado = true;
+            }
+
+            String stringTurno;
+            if (snapshot.isPlayer1Turn) {
+                stringTurno = (fixedPerspectiveP1 != null) ? "Jugador 1 (Host)" : "Jugador 1";
+            } else {
+                stringTurno = (fixedPerspectiveP1 != null) ? "Jugador 2 (Vos)" : "Jugador 2";
+            }
+
+            vistaGrafica.printLine("\n-----------------------------------------");
+            vistaGrafica.printLine("⚔️ TURNO ACTUAL: " + stringTurno);
+            
+            boolean esMiTurnoEnRed = (fixedPerspectiveP1 == null) || (snapshot.isPlayer1Turn == fixedPerspectiveP1);
+            
+            if (esMiTurnoEnRed) {
+                vistaGrafica.printLine("> ¡Es tu turno! Haz clic en el radar enemigo para disparar.");
+            } else {
+                vistaGrafica.printLine("> Esperando que el enemigo ejecute su disparo...");
+            }
+        }
+        // --- FASE 3: FIN DE JUEGO ---
+        else if (snapshot.state == GameState.FINISHED) {
+            String ganador = snapshot.isPlayer1Turn ? "Jugador 1" : "Jugador 2";
+            vistaGrafica.printLine("\n=========================================");
+            vistaGrafica.printLine("🏆 ¡PARTIDA TERMINADA! Ganador: " + ganador);
+            vistaGrafica.printLine("=========================================");
+        }
+    }
+
+    @Override
+    public void onShipPlaced(Ship ship, int remainingCount) {
+        vistaGrafica.printLine("✅ ¡Barco colocado exitosamente! Faltan colocar: " + remainingCount);
+    }
+
+    @Override
+    public void onError(String errorMessage) {
+        vistaGrafica.printLine("❌ Error táctico: " + errorMessage);
+    }
+
+    @Override
+    public void onShotFired(Position pos, ShotResult result, boolean wasPlayer1) {
+        String tirador = wasPlayer1 ? "Jugador 1" : ((fixedPerspectiveP1 != null && fixedPerspectiveP1) ? "IA" : "Jugador 2");
+        
+        String mensajeTiro = ">>> " + tirador + " dispara en (" + pos.getX() + "," + pos.getY() + ") -> ";
+        
+        switch (result) {
+            case MISS -> mensajeTiro += "💦 ¡AGUA!";
+            case HIT -> mensajeTiro += "🔥 ¡IMPACTO!";
+            case SUNK -> mensajeTiro += "💥 ¡TOCADO Y HUNDIDO!";
+        }
+        vistaGrafica.printLine(mensajeTiro);
+
+        // --- SISTEMA DE SEÑALES UNIFICADO PARA TODOS LOS MODOS ---
+        // Si el juego terminó, no imprimimos mensajes de mantener turno
+        if (currentSnapshot != null && currentSnapshot.state == GameState.FINISHED) {
+            return;
+        }
+
+        if (result == ShotResult.MISS) {
+            // Si es modo Red, solo avisamos del cambio de turno general
+            if (fixedPerspectiveP1 != null) {
+                vistaGrafica.printLine("💦 Falló el disparo. Cambio de turno.");
+            }
+        } else {
+            // HIT o SUNK: Alguien pegó un tiro. 
+            // Evaluamos si el que pegó es el jugador que está mirando esta pantalla
+            boolean soyP1YPegóP1 = (fixedPerspectiveP1 != null && fixedPerspectiveP1 && wasPlayer1);
+            boolean soyP2YPegóP2 = (fixedPerspectiveP1 != null && !fixedPerspectiveP1 && !wasPlayer1);
+            boolean esModoLocal = (fixedPerspectiveP1 == null);
+
+            if (esModoLocal || soyP1YPegóP1 || soyP2YPegóP2) {
+                vistaGrafica.printLine("🔥 ¡Buen tiro! Mantenés el turno. ¡Dispará de nuevo!");
+            } else {
+                vistaGrafica.printLine("⚠️ El enemigo impactó un barco tuyo. Sigue disparando él...");
+            }
+        }
+    }
+}

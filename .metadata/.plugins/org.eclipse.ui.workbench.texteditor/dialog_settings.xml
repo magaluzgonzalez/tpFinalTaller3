@@ -3,6 +3,10 @@
 	<section name="java.lang.Class">
 		<item key="replaceBarOpen" value="false"/>
 		<list key="findhistory">
+			<item value="mostrar"/>
+			<item value="print"/>
+			<item value="timer"/>
+			<item value="mainpanel"/>
 			<item value="attem"/>
 			<item value="controller"/>
 		</list>

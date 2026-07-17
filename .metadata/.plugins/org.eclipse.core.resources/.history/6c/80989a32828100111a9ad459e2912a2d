@@ -1,0 +1,123 @@
+package com.tpfinal.batallanaval.UI;
+
+import com.tpfinal.batallanaval.model.*;
+import com.tpfinal.batallanaval.view.SwingUI;
+
+public class PerspectiveManager {
+    private final GameConfig config;
+    private final Boolean fixedPerspectiveP1;
+
+    public PerspectiveManager(GameConfig config, Boolean fixedPerspectiveP1) {
+        this.config = config;
+        this.fixedPerspectiveP1 = fixedPerspectiveP1;
+    }
+
+    public void aplicarPerspectiva(GameSnapshot snapshot, SwingUI vista) {
+        // 1. Averiguamos de quién es el turno actual
+        boolean isTurnP1;
+        if (fixedPerspectiveP1 != null) {
+            isTurnP1 = fixedPerspectiveP1; // IA o Red (Fijo)
+        } else {
+            if (snapshot.state == GameState.PLACING_SHIPS) {
+                isTurnP1 = (snapshot.player1Ships.size() < config.getShipCount());
+            } else {
+                isTurnP1 = snapshot.isPlayer1Turn;
+            }
+        }
+
+        // 2. Formateamos los títulos de forma coherente y prolija
+        updateBoardNames(snapshot, vista, isTurnP1);
+
+        // 3. Recorremos las grillas para pintar los colores
+        for (int y = 0; y < config.getHeight(); y++) {
+            for (int x = 0; x < config.getWidth(); x++) {
+                Position pos = new Position(x, y);
+
+                // TABLERO IZQUIERDO: Datos del JUGADOR 1
+                StatusCell estadoJ1 = snapshot.player1MissedShots.contains(pos) ? StatusCell.WATER : StatusCell.EMPTY;
+                for (Ship s : snapshot.player1Ships) {
+                    for (Cell c : s.getParts()) {
+                        if (c.getPosition().equals(pos)) {
+                            if (c.isHit()) {
+                                estadoJ1 = StatusCell.IMPACT;
+                            } else {
+                                estadoJ1 = isTurnP1 ? StatusCell.SHIP : StatusCell.EMPTY; 
+                            }
+                        }
+                    }
+                }
+                vista.actualizarCasilleroMiFlota(x, y, estadoJ1);
+
+                // TABLERO DERECHO: Datos del JUGADOR 2
+                StatusCell estadoJ2 = snapshot.player2MissedShots.contains(pos) ? StatusCell.WATER : StatusCell.EMPTY;
+                for (Ship s : snapshot.player2Ships) {
+                    for (Cell c : s.getParts()) {
+                        if (c.getPosition().equals(pos)) {
+                            if (c.isHit()) {
+                                estadoJ2 = StatusCell.IMPACT;
+                            } else {
+                                estadoJ2 = !esTurnoP1 ? StatusCell.SHIP : StatusCell.EMPTY; 
+                            }
+                        }
+                    }
+                }
+                vista.actualizarCasilleroRadar(x, y, estadoJ2);
+            }
+        }
+    }
+
+    public void aplicarPerspectivaConTurnoFijo(GameSnapshot snapshot, SwingUI vista, boolean esTurnoP1) {
+        // Forzamos los títulos con el turno del jugador que acaba de disparar antes de la transición
+        actualizarNombresTableros(snapshot, vista, esTurnoP1);
+
+        for (int y = 0; y < config.getHeight(); y++) {
+            for (int x = 0; x < config.getWidth(); x++) {
+                Position pos = new Position(x, y);
+
+                // Tablero Izquierdo (J1)
+                StatusCell estadoJ1 = snapshot.player1MissedShots.contains(pos) ? StatusCell.WATER : StatusCell.EMPTY;
+                for (Ship s : snapshot.player1Ships) {
+                    for (Cell c : s.getParts()) {
+                        if (c.getPosition().equals(pos)) {
+                            estadoJ1 = c.isHit() ? StatusCell.IMPACT : (esTurnoP1 ? StatusCell.SHIP : StatusCell.EMPTY);
+                        }
+                    }
+                }
+                vista.actualizarCasilleroMiFlota(x, y, estadoJ1);
+
+                // Tablero Derecho (J2)
+                StatusCell estadoJ2 = snapshot.player2MissedShots.contains(pos) ? StatusCell.WATER : StatusCell.EMPTY;
+                for (Ship s : snapshot.player2Ships) {
+                    for (Cell c : s.getParts()) {
+                        if (c.getPosition().equals(pos)) {
+                            estadoJ2 = c.isHit() ? StatusCell.IMPACT : (!esTurnoP1 ? StatusCell.SHIP : StatusCell.EMPTY);
+                        }
+                    }
+                }
+                vista.actualizarCasilleroRadar(x, y, estadoJ2);
+            }
+        }
+    }
+
+    // --- NUEVO MÉTODO DE TITULACIÓN LÓGICA ---
+    private void actualizarNombresTableros(GameSnapshot snapshot, SwingUI vista, boolean esTurnoP1) {
+        String tituloIzquierdo;
+        String tituloDerecho;
+
+        if (snapshot.state == GameState.PLACING_SHIPS) {
+            tituloIzquierdo = "JUGADOR 1 " + (esTurnoP1 ? "👉 [ COLOCANDO BARCOS ]" : "(Esperando...)");
+            tituloDerecho = "JUGADOR 2 " + (!esTurnoP1 ? "👉 [ COLOCANDO BARCOS ]" : "(Esperando...)");
+        } else {
+            // Fase de juego: Mostramos quién ataca y quién defiende en base a la perspectiva activa
+            if (esTurnoP1) {
+                tituloIzquierdo = "JUGADOR 1 ⭐ [ MI FLOTA - DEFENDIENDO ]";
+                tituloDerecho = "RADAR ENEMIGO 🎯 [ ATACANDO A JUGADOR 2 ]";
+            } else {
+                tituloIzquierdo = "RADAR ENEMIGO 🎯 [ ATACANDO A JUGADOR 1 ]";
+                tituloDerecho = "JUGADOR 2 ⭐ [ MI FLOTA - DEFENDIENDO ]";
+            }
+        }
+
+        vista.actualizarTitulos(tituloIzquierdo, tituloDerecho);
+    }
+}
