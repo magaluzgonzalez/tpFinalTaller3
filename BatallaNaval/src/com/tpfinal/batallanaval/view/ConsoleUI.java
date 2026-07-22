@@ -4,44 +4,58 @@ import com.tpfinal.batallanaval.controller.PlayerController;
 import com.tpfinal.batallanaval.game.GameListener;
 import com.tpfinal.batallanaval.model.*;
 
+ //Componente que actúa como observador (GameListener) de la partida.
+ // Procesa los eventos del motor del juego (Game) y formatea las bitacoras
+ // informativas enviandolas hacia la terminal de texto de la vista grafica.
+
 public class ConsoleUI implements GameListener {
     private final PlayerController controller;
     private final GameConfig config; 
     private GameSnapshot currentSnapshot;
     private final Boolean fixedPerspectiveP1; 
     
-    // 🔌 CONEXIÓN: Guardamos la referencia a la ventana gráfica
+    // Referencia a la vista Swing encargada de desplegar la terminal de texto
     private final SwingUI graphicView; 
     
     private boolean gameStartedBannerDisplayed = false;
 
-    // Pasamos SwingUI por el constructor
+   
+     // Construye el adaptador de bitácora vinculándolo con la vista Swing.
+    
+    /* @param controller = controlador del jugador asociado.
+     * @param config = configuracion global del juego.
+     * @param fixedPerspectiveP1 = perspectiva del jugador para filtrar mensajes segun el cliente.
+     * @param graphicView = instancia grafica donde se imprimen los registros de texto.
+     */
     public ConsoleUI(PlayerController controller, GameConfig config, Boolean fixedPerspectiveP1, SwingUI graphicView) {
         this.controller = controller;
         this.config = config;
         this.fixedPerspectiveP1 = fixedPerspectiveP1;
-        this.graphicView = graphicView; // <-- Guardamos la ventana
+        this.graphicView = graphicView;
     }
- 
+
+    
+     // Captura las modificaciones globales del estado de la partida
+     // e imprime los encabezados de fase correspondiente en la bitacora.
+     
     @Override
     public void onGameStateChanged(GameSnapshot snapshot) {
         this.currentSnapshot = snapshot;
         
         boolean viewAsP1 = (fixedPerspectiveP1 != null) ? fixedPerspectiveP1 : 
             (snapshot.state == GameState.PLACING_SHIPS ? (snapshot.player1Ships.size() < config.getShipCount()) : snapshot.isPlayer1Turn);
- 
-     // --- FASE 1: COLOCACIÓN ---
+
+        //FASE 1: COLOCACION DE BARCOS
         if (snapshot.state == GameState.PLACING_SHIPS) {
             graphicView.printLine("\n=========================================");
             graphicView.printLine("ESTADO: COLOCACIÓN DE BARCOS");
             graphicView.printLine("-> Coloca tus piezas en la botonera gráfica.");
-            // 🖱️ AGREGADO: Instrucciones de los clics para el sentido del barco
             graphicView.printLine("-> [Click Izquierdo] -> Colocar en HORIZONTAL");
             graphicView.printLine("-> [Click Derecho]   -> Colocar en VERTICAL");
             graphicView.printLine("-----------------------------------------");
             graphicView.printLine("-> Turno de colocación: " + (viewAsP1 ? "JUGADOR 1" : "JUGADOR 2"));
         }
-        // --- FASE 2: JUGANDO ---
+        //FASE 2: DESARROLLO DEL JUEGO
         else if (snapshot.state == GameState.PLAYING) {
             if (!gameStartedBannerDisplayed) {
                 graphicView.printLine("\n=========================================");
@@ -50,12 +64,7 @@ public class ConsoleUI implements GameListener {
                 gameStartedBannerDisplayed = true;
             }
 
-            String stringTurn;
-            if (snapshot.isPlayer1Turn) {
-                stringTurn = (fixedPerspectiveP1 != null) ? "Jugador 1" : "Jugador 1";
-            } else {
-                stringTurn = (fixedPerspectiveP1 != null) ? "Jugador 2" : "Jugador 2";
-            }
+            String stringTurn = snapshot.isPlayer1Turn ? "Jugador 1" : "Jugador 2";
 
             graphicView.printLine("\n-----------------------------------------");
             graphicView.printLine("⚔️ TURNO ACTUAL: " + stringTurn);
@@ -68,7 +77,7 @@ public class ConsoleUI implements GameListener {
                 graphicView.printLine("> Esperando que el enemigo ejecute su disparo...");
             }
         }
-        // --- FASE 3: FIN DE JUEGO ---
+        //FASE 3: FINALIZACION ---
         else if (snapshot.state == GameState.FINISHED) {
             String winner = snapshot.isPlayer1Turn ? "Jugador 1" : "Jugador 2";
             graphicView.printLine("\n=========================================");
@@ -77,16 +86,26 @@ public class ConsoleUI implements GameListener {
         }
     }
 
+    
+     // Reporta la correcta ubicacion de una embarcacion en la grilla.
+     
     @Override
     public void onShipPlaced(Ship ship, int remainingCount) {
         graphicView.printLine("✅ ¡Barco colocado exitosamente! Faltan colocar: " + remainingCount);
     }
 
+    
+    // Reporta excepciones a las reglas del juego generadas por el motor.
+     
     @Override
     public void onError(String errorMessage) {
         graphicView.printLine("❌ Error táctico: " + errorMessage);
     }
 
+    
+     // Mapea los disparos efectuados y sus resultados (agua, impacto, hundimiento)
+     // emitiendo mensajes contextualizados al turno y modo de juego.
+     
     @Override
     public void onShotFired(Position pos, ShotResult result, boolean wasPlayer1) {
         String shooter = wasPlayer1 ? "Jugador 1" : ((fixedPerspectiveP1 != null && fixedPerspectiveP1) ? "IA" : "Jugador 2");
@@ -100,20 +119,16 @@ public class ConsoleUI implements GameListener {
         }
         graphicView.printLine(mensajeTiro);
 
-        // --- SISTEMA DE SEÑALES UNIFICADO PARA TODOS LOS MODOS ---
-        // Si el juego terminó, no imprimimos mensajes de mantener turno
         if (currentSnapshot != null && currentSnapshot.state == GameState.FINISHED) {
             return;
         }
 
         if (result == ShotResult.MISS) {
-            // Si es modo Red, solo avisamos del cambio de turno general
             if (fixedPerspectiveP1 != null) {
                 graphicView.printLine("💦 Falló el disparo. Cambio de turno.");
             }
         } else {
-            // HIT o SUNK: Alguien pegó un tiro. 
-            // Evaluamos si el que pegó es el jugador que está mirando esta pantalla
+            // Evaluacion de la retencion del turno por impacto exitoso
             boolean imP1andShotP1 = (fixedPerspectiveP1 != null && fixedPerspectiveP1 && wasPlayer1);
             boolean imP2andShotP2 = (fixedPerspectiveP1 != null && !fixedPerspectiveP1 && !wasPlayer1);
             boolean localMode = (fixedPerspectiveP1 == null);
@@ -124,5 +139,9 @@ public class ConsoleUI implements GameListener {
                 graphicView.printLine("⚠️ El enemigo impactó un barco tuyo. Sigue disparando él...");
             }
         }
+    }
+
+    public PlayerController getController() {
+        return controller;
     }
 }

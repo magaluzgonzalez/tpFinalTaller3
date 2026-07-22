@@ -14,8 +14,8 @@ public class NetworkClientController implements PlayerController {
     private GameListener ui; // Quien sea que dibuje la pantalla (Consola o Gráfica)
 
     public NetworkClientController(String ip, int port) {
-        try { 
-            Socket socket = new Socket(ip, port);
+        try (
+        	Socket socket = new Socket(ip, port)) { 
             salida = new ObjectOutputStream(socket.getOutputStream());
             entrada = new ObjectInputStream(socket.getInputStream());
             System.out.println("[RED] ¡Conectado al Host exitosamente!");

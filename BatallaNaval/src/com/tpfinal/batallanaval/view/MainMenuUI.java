@@ -12,25 +12,40 @@ import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
 
+
+
+ // Interfaz grafica del Menu Principal de la aplicacion.
+ // Ofrece la selección inicial de los modos de juego (PvP Local, VS IA, Host y Cliente)
+ // desacoplando la instanciacion mediante callbacks ejecutables (Runnable).
+
 public class MainMenuUI {
     private final JFrame frame;
 
+    
+     // Construye la ventana del menu de navegacion.
+      
+    /* @param onPvP = Callback a ejecutar al seleccionar el modo PvP Local.
+     * @param onIA = Callback a ejecutar al seleccionar el modo Jugador vs IA.
+     * @param onHost = Callback a ejecutar al iniciar el servidor de red (Host).
+     * @param onCliente = Callback a ejecutar al conectarse como cliente a una red existente.
+     */
     public MainMenuUI(Runnable onPvP, Runnable onIA, Runnable onHost, Runnable onCliente) {
-        // 1. Crear la ventana principal
+        // Configuracion y dimensionamiento del contenedor principal JFrame
         frame = new JFrame("Battleship - Menú Principal");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setSize(400, 500); // 🛠️ Subí el alto a 500 para que entre cómodo el nuevo botón
+        frame.setSize(400, 500); 
         frame.setLocationRelativeTo(null);
 
         Color darkBlue = new Color(10, 25, 47);
-        // 2. Crear el panel con diseño vertical
+
+        // Panel contenedor de componentes dispuesto en eje vertical
         JPanel mainPanel = new JPanel();
         mainPanel.setLayout(new BoxLayout(mainPanel, BoxLayout.Y_AXIS));
         mainPanel.setBorder(new EmptyBorder(20, 30, 20, 30));
         mainPanel.setBackground(darkBlue);
         mainPanel.setOpaque(true);
 
-        // 3. Título
+        // Cabecera del Menu Principal
         JLabel title = new JLabel("=== BATTLESHIP MAIN MENU ===");
         title.setAlignmentX(Component.CENTER_ALIGNMENT);
         title.setFont(title.getFont().deriveFont(16.0f));
@@ -38,25 +53,23 @@ public class MainMenuUI {
         mainPanel.add(title);
         mainPanel.add(Box.createRigidArea(new Dimension(0, 30)));
 
-        // 4. Crear los botones
+        // Generacion de botones de accion
         JButton btnLocalPvP = createStructuredButton("1. Humano vs Humano (Local)");
         JButton btnLocalIA = createStructuredButton("2. Humano vs IA (Local)");
         JButton btnHost = createStructuredButton("3. Crear Partida en Red (Host)");
         JButton btnClient = createStructuredButton("4. Unirse a Partida en Red (Cliente)");
-        
-        // 🛠️ AGREGADO: Botón de salida
         JButton exitBtn = createStructuredButton("5. Salir del Juego");
 
-        // 5. Asignar las acciones
+        // Asignacion de los escuchadores de eventos (ActionListener) vinculados a los callbacks
         btnLocalPvP.addActionListener(e -> executeAction(onPvP));
         btnLocalIA.addActionListener(e -> executeAction(onIA));
         btnHost.addActionListener(e -> executeAction(onHost));
         btnClient.addActionListener(e -> executeAction(onCliente));
         
-        // 🛠️ AGREGADO: Lógica directa para cerrar el proceso completo
+        // Finalización directa del proceso
         exitBtn.addActionListener(e -> System.exit(0));
 
-        // 6. Agregar componentes al panel
+        // Incorporacion de los elementos con separadores verticales dinamicos (createRigidArea)
         mainPanel.add(btnLocalPvP);
         mainPanel.add(Box.createRigidArea(new Dimension(0, 15)));
         mainPanel.add(btnLocalIA);
@@ -64,18 +77,21 @@ public class MainMenuUI {
         mainPanel.add(btnHost);
         mainPanel.add(Box.createRigidArea(new Dimension(0, 15)));
         mainPanel.add(btnClient);
-        
-        // 🛠️ AGREGADO: Espaciado y botón en la interfaz
         mainPanel.add(Box.createRigidArea(new Dimension(0, 15)));
         mainPanel.add(exitBtn);
 
         frame.add(mainPanel);
     }
 
+  
     public void show() {
         frame.setVisible(true);
     }
 
+    
+    // Cierra la ventana actual libera sus recursos y dispara la acción del modo de juego elegido. 
+    // @param action Callback funcional Runnable asociada al modo de juego.
+     
     private void executeAction(Runnable action) {
         frame.dispose(); 
         if (action != null) {

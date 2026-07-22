@@ -3,7 +3,8 @@ package com.tpfinal.batallanaval.model;
 import java.io.Serializable;
 
 public class Cell implements Serializable {
-    private final Position position;
+	private static final long serialVersionUID = 1L;
+	private final Position position;
     private boolean isHit;
 
     /**

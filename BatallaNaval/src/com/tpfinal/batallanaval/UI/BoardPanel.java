@@ -6,25 +6,35 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.function.BiConsumer;
 
+
+ // Componente grafico personalizado que representa un tablero de juego.
+ // Administra la grilla visual, las etiquetas de coordenadas (ejes X e Y)
+ // y la captura de eventos del mouse sobre cada casillero.
+
 public class BoardPanel extends JPanel {
     private static final long serialVersionUID = 1L;
     private final int columns;
     private final int rows;
     private final CheckboxButton[][] matrix;
 
+    // Construye el panel del tablero generando la grilla interactiva y los encabezados de coordenadas.
+      
+     /* @param columns = cantidad de columnas de la grilla de juego.
+     * @param rows = cantidad de filas de la grilla de juego.
+     * @param isInteractive = chequea si los botones responden a los clics del jugador en curso.
+     * @param onButtonMouseClick = callback funcional para delegar la acción del clic (recibe el boton y si fue clic izquierdo).
+     */
     public BoardPanel(int columns, int rows, boolean isInteractive, BiConsumer<CheckboxButton, Boolean> onButtonMouseClick) {
         this.columns = columns;
         this.rows = rows;
         this.matrix = new CheckboxButton[columns][rows];
 
-        // 🛠️ MODIFICADO: Le sumamos 1 a las filas y 1 a las columnas para el marco de números
+        // Se extiende la grilla (+1 en filas y columnas) para almacenar las etiquetas de coordenadas
         setLayout(new GridLayout(rows + 1, columns + 1, 2, 2));
-        setBackground(new Color(10, 25, 47)); // Fondo oscuro a tono con tu UI
+        setBackground(new Color(10, 25, 47));
 
-        // =========================================================================
-        // 1. FILA DE ARRIBA: Esquina vacía + Números de las Columnas (0 al 9)
-        // =========================================================================
-        add(new JLabel("")); // El casillero vacío de la esquina superior izquierda
+        // Renderizado de la fila superior: casillero nulo de origen y numeros de columna (Eje X)
+        add(new JLabel("")); 
         
         for (int x = 0; x < columns; x++) {
             JLabel lblCol = new JLabel(String.valueOf(x), SwingConstants.CENTER);
@@ -33,12 +43,9 @@ public class BoardPanel extends JPanel {
             add(lblCol);
         }
 
-        // =========================================================================
-        // 2. CUERPO DEL TABLERO: Número de fila en la izquierda + Botones de la matriz
-        // =========================================================================
+        // Renderizado del cuerpo del tablero: etiqueta de fila (Eje Y) + botones de la grilla
         for (int y = 0; y < rows; y++) {
             
-            // Ponemos el número de la fila actual antes de meter sus botones
             JLabel lblRow = new JLabel(String.valueOf(y), SwingConstants.CENTER);
             lblRow.setFont(new Font("SansSerif", Font.BOLD, 11));
             lblRow.setForeground(Color.LIGHT_GRAY);
@@ -48,8 +55,9 @@ public class BoardPanel extends JPanel {
                 CheckboxButton button = new CheckboxButton(x, y);
                 matrix[x][y] = button;
 
+                // Suscripcion a eventos de mouse para diferenciar clic izquierdo (orientación/disparo) y derecho
                 if (isInteractive && onButtonMouseClick != null) {
-                	button.addMouseListener(new MouseAdapter() {
+                    button.addMouseListener(new MouseAdapter() {
                         @Override
                         public void mousePressed(MouseEvent e) {
                             if (!button.isEnabled()) return;
@@ -59,16 +67,16 @@ public class BoardPanel extends JPanel {
                         }
                     });
                 }
-                add(button); // Se agrega el botón normalmente
+                add(button);
             }
         }
     }
 
+     // Actualiza el estado visual de una casilla específica en la matriz interna.
+     
     public void updateCell(int x, int y, StatusCell status) {
-        // Tu lógica de actualización sigue intacta porque la matriz interna no cambió de tamaño
         if (x >= 0 && x < columns && y >= 0 && y < rows) {
-        	matrix[x][y].setStatus(status);
+            matrix[x][y].setStatus(status);
         }
-        
     }
- }
+}

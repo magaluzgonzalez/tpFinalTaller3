@@ -8,8 +8,7 @@ import java.util.List;
 import java.util.Random;
 
 import com.tpfinal.batallanaval.game.GameListener;
-import com.tpfinal.batallanaval.model.*;
-import java.util.*;
+
 
 public class AIController implements GameListener {
     private final Game game;
@@ -28,43 +27,43 @@ public class AIController implements GameListener {
 
     @Override
     public void onGameStateChanged(GameSnapshot snapshot) {
-        // --- FASE 1: COLOCACIÓN DE BARCOS ---
+        //FASE 1: COLOCACIÓN DE BARCOS 
         if (snapshot.state == GameState.PLACING_SHIPS) {
-            colocarBarcosAleatorios(snapshot);
+            placeRandomShip(snapshot);
         }
-        // --- FASE 2: DISPAROS INTELIGENTES ---
+        //FASE 2: DISPAROS INTELIGENTES
         else if (snapshot.state == GameState.PLAYING && snapshot.isPlayer1Turn == this.isPlayer1) {
-            pensarYDisparar();
+            calculateShot();
         }
     }
 
     // --- ESCUCHA DE IMPACTOS PARA ACTUALIZAR LA INTELIGENCIA ---
     @Override
     public void onShotFired(Position pos, ShotResult result, boolean wasPlayer1Turn) {
-        // Solo nos interesan los resultados de nuestros propios disparos como IA
+        //Solo interesan los resultados de nuestros propios disparos como IA
         if (wasPlayer1Turn == this.isPlayer1) {
             if (result == ShotResult.HIT) {
-                pendingHits.add(pos); // Guardamos la coordenada para rematarla después
+                pendingHits.add(pos); //Guardo la coordenada para retomarla después
             } 
             else if (result == ShotResult.SUNK) {
-                // Si lo hundimos, limpiamos de la lista táctica los impactos de este barco
+                // Si el barco fue hundido, limpiar de la lista táctica los impactos de este barco
                 pendingHits.removeIf(p -> {
-                    boolean mismaLinea = (p.getX() == pos.getX() || p.getY() == pos.getY());
-                    int distancia = Math.abs(p.getX() - pos.getX()) + Math.abs(p.getY() - pos.getY());
-                    return mismaLinea && distancia < 5; // Largo máximo de un barco estándar
+                    boolean sameRow = (p.getX() == pos.getX() || p.getY() == pos.getY());
+                    int distance = Math.abs(p.getX() - pos.getX()) + Math.abs(p.getY() - pos.getY());
+                    return sameRow && distance < 5; // Largo maximo de un barco
                 });
             }
         }
     }
 
-    // --- LÓGICA DE PROCESAMIENTO HÍBRIDOCONTROLLER ---
-    private void pensarYDisparar() {
+    //LOGICA DE PROCESAMIENTO
+    private void calculateShot() {
         new Thread(() -> {
             try { 
-                Thread.sleep(800); // Demora simulada de "pensamiento" de la IA
+                Thread.sleep(800); //Pausa de "pensamiento" de la IA
             } catch (InterruptedException e) {}
 
-            Position target = elegirMejorPosicion();
+            Position target = choiceBestPosition();
             if (target != null) {
                 firedShots.add(target);
                 game.processShot(target);
@@ -72,72 +71,72 @@ public class AIController implements GameListener {
         }).start();
     }
 
-    private Position elegirMejorPosicion() {
-        // PRIORIDAD 1: Si ya encontramos un barco y hay múltiples impactos, seguimos la línea (Eje)
+    private Position choiceBestPosition() {
+        //-- Si ya encontramos un barco y hay múltiples impactos, seguimos la línea (Eje) --
         if (pendingHits.size() >= 2) {
             // Ordenamos las posiciones heridas para hallar los extremos
             pendingHits.sort((p1, p2) -> p1.getX() != p2.getX() ? p1.getX() - p2.getX() : p1.getY() - p2.getY());
-            Position primero = pendingHits.get(0);
-            Position ultimo = pendingHits.get(pendingHits.size() - 1);
+            Position first = pendingHits.get(0);
+            Position last = pendingHits.get(pendingHits.size() - 1);
 
-            if (primero.getY() == ultimo.getY()) { // Línea Horizontal
-                Position d = new Position(ultimo.getX() + 1, ultimo.getY());
-                if (esValida(d) && !firedShots.contains(d)) return d;
-                Position i = new Position(primero.getX() - 1, primero.getY());
-                if (esValida(i) && !firedShots.contains(i)) return i;
+            if (first.getY() == last.getY()) { // Barco horizontal
+                Position d = new Position(last.getX() + 1, last.getY());
+                if (isValid(d) && !firedShots.contains(d)) return d;
+                Position i = new Position(first.getX() - 1, first.getY());
+                if (isValid(i) && !firedShots.contains(i)) return i;
             } 
-            else if (primero.getX() == ultimo.getX()) { // Línea Vertical
-                Position a = new Position(ultimo.getX(), ultimo.getY() + 1);
-                if (esValida(a) && !firedShots.contains(a)) return a;
-                Position up = new Position(primero.getX(), primero.getY() - 1);
-                if (esValida(up) && !firedShots.contains(up)) return up;
+            else if (first.getX() == last.getX()) { // Barco vertical
+                Position a = new Position(last.getX(), last.getY() + 1);
+                if (isValid(a) && !firedShots.contains(a)) return a;
+                Position up = new Position(first.getX(), first.getY() - 1);
+                if (isValid(up) && !firedShots.contains(up)) return up;
             }
         }
 
-        // PRIORIDAD 2: Si hay un solo impacto, disparamos a los vecinos en cruz
+        //-- Si hay un solo impacto, disparamos a los vecinos en cruz--
         if (!pendingHits.isEmpty()) {
             Position lastHit = pendingHits.get(pendingHits.size() - 1);
-            Position[] vecinos = {
+            Position[] neighbor = {
                 new Position(lastHit.getX() + 1, lastHit.getY()), // Derecha
                 new Position(lastHit.getX() - 1, lastHit.getY()), // Izquierda
                 new Position(lastHit.getX(), lastHit.getY() + 1), // Abajo
                 new Position(lastHit.getX(), lastHit.getY() - 1)  // Arriba
             };
-            for (Position p : vecinos) {
-                if (esValida(p) && !firedShots.contains(p)) return p;
+            for (Position p : neighbor) {
+                if (isValid(p) && !firedShots.contains(p)) return p;
             }
         }
 
-        // PRIORIDAD 3: Si no hay barcos detectados, disparamos en modo "Ajedrez" (Casillas clave)
-        return obtenerDisparoAjedrezOAlAzar();
+        // Si no hay barcos detectados, piensa estategicamente donde disparar o aleatoriamente 
+        return getShotPosition();
     }
 
-    private Position obtenerDisparoAjedrezOAlAzar() {
+    private Position getShotPosition() {
         Position target;
-        int intentos = 0;
+        int tries = 0;
         int w = game.getConfig().getWidth();
         int h = game.getConfig().getHeight();
 
-        // Intenta buscar una casilla donde (x + y) % 2 == 0 (Filtro de Ajedrez)
+        // Intenta buscar una casilla donde (x + y) % 2 == 0 (filtro de ajedrez)
         do {
             target = new Position(random.nextInt(w), random.nextInt(h));
-            intentos++;
-            if (intentos > 100) break; 
+            tries++;
+            if (tries > 100) break; 
         } while (firedShots.contains(target) || (target.getX() + target.getY()) % 2 != 0);
 
-        // Fallback: Si el casillero ya se usó o el filtro falló, saca cualquier coordenada vacía al azar
+        //Si el casillero ya se uso o el filtro fallo, saca cualquier coordenada vacía al azar
         while (firedShots.contains(target)) {
             target = new Position(random.nextInt(w), random.nextInt(h));
         }
         return target;
     }
 
-    private boolean esValida(Position p) {
+    private boolean isValid(Position p) {
         return p.getX() >= 0 && p.getX() < game.getConfig().getWidth() &&
                p.getY() >= 0 && p.getY() < game.getConfig().getHeight();
     }
 
-    private void colocarBarcosAleatorios(GameSnapshot snapshot) {
+    private void placeRandomShip(GameSnapshot snapshot) {
         int myShipCount = isPlayer1 ? snapshot.player1Ships.size() : snapshot.player2Ships.size();
         if (myShipCount < game.getConfig().getShipCount()) {
             int size = game.getConfig().getShipLengths()[myShipCount];

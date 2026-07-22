@@ -1,0 +1,147 @@
+package com.tpfinal.batallanaval.UI;
+
+import com.tpfinal.batallanaval.model.*;
+import com.tpfinal.batallanaval.view.SwingUI;
+
+/**
+ * Gestor de perspectiva visual del juego.
+ * Modula la visibilidad de los componentes graficos garantizando la ocultación
+ * de información según el jugador activo y la fase de la partida.
+ */
+public class PerspectiveManager {
+    private final GameConfig config;
+    private final Boolean fixedPerspectiveP1;
+
+    /**
+     * @param config = configuración global de la partida (dimensiones y cantidad de naves).
+     * @param fixedPerspectiveP1 = perspectiva fija asignada. Si es 'true' o 'false',
+     *                           fija la vista (Modos IA y Red). Si es 'null', habilita
+     *                           la rotación dinamica en la misma pantalla (Modo PvP).
+     */
+    public PerspectiveManager(GameConfig config, Boolean fixedPerspectiveP1) {
+        this.config = config;
+        this.fixedPerspectiveP1 = fixedPerspectiveP1;
+    }
+
+    /**
+     * Evalúa el estado del juego y mapea las matrices lógicas en la interfaz gráfica,
+     * aplicando las reglas de visibilidad según el turno correspondiente.
+     * 
+     * @param snapshot Estado actual del modelo de datos (GameSnapshot).
+     * @param view Referencia a la vista gráfica (SwingUI).
+     */
+    public void applyPerspective(GameSnapshot snapshot, SwingUI view) {
+        // Determinación del turno activo para ajustar la niebla de guerra
+        boolean isTurnP1;
+        if (fixedPerspectiveP1 != null) {
+            isTurnP1 = fixedPerspectiveP1;
+        } else {
+            if (snapshot.state == GameState.PLACING_SHIPS) {
+                isTurnP1 = (snapshot.player1Ships.size() < config.getShipCount());
+            } else {
+                isTurnP1 = snapshot.isPlayer1Turn;
+            }
+        }
+
+        // Actualización dinámica de las cabeceras de ambos tableros
+        updateBoardNames(snapshot, view, isTurnP1);
+
+        // Iteración matricial para la traducción de estados lógicos a estados visuales
+        for (int y = 0; y < config.getHeight(); y++) {
+            for (int x = 0; x < config.getWidth(); x++) {
+                Position pos = new Position(x, y);
+
+                // --- TABLERO IZQUIERDO: Flota / Radar del Jugador 1 ---
+                StatusCell statusJ1 = snapshot.player1MissedShots.contains(pos) ? StatusCell.WATER : StatusCell.EMPTY;
+                for (Ship s : snapshot.player1Ships) {
+                    for (Cell c : s.getParts()) {
+                        if (c.getPosition().equals(pos)) {
+                            if (c.isHit()) {
+                                statusJ1 = StatusCell.IMPACT;
+                            } else {
+                                // Niebla de Guerra: Los barcos intactos solo son visibles si es el turno del P1
+                                statusJ1 = isTurnP1 ? StatusCell.SHIP : StatusCell.EMPTY; 
+                            }
+                        }
+                    }
+                }
+                view.updateMyFleetCell(x, y, statusJ1);
+
+                // --- TABLERO DERECHO: Flota / Radar del Jugador 2 ---
+                StatusCell statusJ2 = snapshot.player2MissedShots.contains(pos) ? StatusCell.WATER : StatusCell.EMPTY;
+                for (Ship s : snapshot.player2Ships) {
+                    for (Cell c : s.getParts()) {
+                        if (c.getPosition().equals(pos)) {
+                            if (c.isHit()) {
+                                statusJ2 = StatusCell.IMPACT;
+                            } else {
+                                // Niebla de Guerra: Los barcos intactos solo son visibles si es el turno del P2
+                                statusJ2 = !isTurnP1 ? StatusCell.SHIP : StatusCell.EMPTY; 
+                            }
+                        }
+                    }
+                }
+                view.updateRadarGrid(x, y, statusJ2);
+            }
+        }
+    }
+
+    
+      // Aplica la representacion visual forzando un turno estático.
+      // Utilizado para congelar la pantalla durante las animaciones de transicion en PvP.
+     
+    public void applyPerspectiveWithFixedTurn(GameSnapshot snapshot, SwingUI vista, boolean isTurnP1) {
+        updateBoardNames(snapshot, vista, isTurnP1);
+
+        for (int y = 0; y < config.getHeight(); y++) {
+            for (int x = 0; x < config.getWidth(); x++) {
+                Position pos = new Position(x, y);
+
+                // Representacion estatica del Tablero Izquierdo (P1)
+                StatusCell statusJ1 = snapshot.player1MissedShots.contains(pos) ? StatusCell.WATER : StatusCell.EMPTY;
+                for (Ship s : snapshot.player1Ships) {
+                    for (Cell c : s.getParts()) {
+                        if (c.getPosition().equals(pos)) {
+                            statusJ1 = c.isHit() ? StatusCell.IMPACT : (isTurnP1 ? StatusCell.SHIP : StatusCell.EMPTY);
+                        }
+                    }
+                }
+                vista.updateMyFleetCell(x, y, statusJ1);
+
+                // Representacion estatica del Tablero Derecho (P2)
+                StatusCell statusJ2 = snapshot.player2MissedShots.contains(pos) ? StatusCell.WATER : StatusCell.EMPTY;
+                for (Ship s : snapshot.player2Ships) {
+                    for (Cell c : s.getParts()) {
+                        if (c.getPosition().equals(pos)) {
+                            statusJ2 = c.isHit() ? StatusCell.IMPACT : (!isTurnP1 ? StatusCell.SHIP : StatusCell.EMPTY);
+                        }
+                    }
+                }
+                vista.updateRadarGrid(x, y, statusJ2);
+            }
+        }
+    }
+
+    
+    // Actualiza los titulos superiores de los tableros en base a la fase de juego y la perspectiva activa.
+     
+    private void updateBoardNames(GameSnapshot snapshot, SwingUI view, boolean isTurnP1) {
+        String leftTitle;
+        String rightTitle;
+
+        if (snapshot.state == GameState.PLACING_SHIPS) {
+            leftTitle = "JUGADOR 1 " + (isTurnP1 ? "👉 [ COLOCANDO BARCOS ]" : "(Esperando...)");
+            rightTitle = "JUGADOR 2 " + (!isTurnP1 ? "👉 [ COLOCANDO BARCOS ]" : "(Esperando...)");
+        } else {
+            if (isTurnP1) {
+                leftTitle = "JUGADOR 1 ⭐ [ MI FLOTA - DEFENDIENDO ]";
+                rightTitle = "RADAR ENEMIGO 🎯 [ ATACANDO A JUGADOR 2 ]";
+            } else {
+                leftTitle = "RADAR ENEMIGO 🎯 [ ATACANDO A JUGADOR 1 ]";
+                rightTitle = "JUGADOR 2 ⭐ [ MI FLOTA - DEFENDIENDO ]";
+            }
+        }
+
+        view.updateTitles(leftTitle, rightTitle);
+    }
+}

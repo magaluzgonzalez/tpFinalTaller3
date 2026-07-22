@@ -1,0 +1,118 @@
+package com.tpfinal.batallanaval.view;
+
+import javax.swing.Box;
+import javax.swing.BoxLayout;
+import javax.swing.JButton;
+import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.border.EmptyBorder;
+
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Dimension;
+
+
+/**
+ * Interfaz gráfica del Menú Principal de la aplicación.
+ * Ofrece la selección inicial de los modos de juego (PvP Local, VS IA, Host y Cliente)
+ * desacoplando la instanciación mediante callbacks ejecutables (Runnable).
+ */
+public class MainMenuUI {
+    private final JFrame frame;
+
+    /**
+     * Construye la ventana del menú de navegación.
+     * 
+     * @param onPvP Callback a ejecutar al seleccionar el modo PvP Local.
+     * @param onIA Callback a ejecutar al seleccionar el modo Jugador vs IA.
+     * @param onHost Callback a ejecutar al iniciar el servidor de red (Host).
+     * @param onCliente Callback a ejecutar al conectarse como cliente a una red existente.
+     */
+    public MainMenuUI(Runnable onPvP, Runnable onIA, Runnable onHost, Runnable onCliente) {
+        // Configuración y dimensionamiento del contenedor principal JFrame
+        frame = new JFrame("Battleship - Menú Principal");
+        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        frame.setSize(400, 500); 
+        frame.setLocationRelativeTo(null);
+
+        Color darkBlue = new Color(10, 25, 47);
+
+        // Panel contenedor de componentes dispuesto en eje vertical (Y_AXIS)
+        JPanel mainPanel = new JPanel();
+        mainPanel.setLayout(new BoxLayout(mainPanel, BoxLayout.Y_AXIS));
+        mainPanel.setBorder(new EmptyBorder(20, 30, 20, 30));
+        mainPanel.setBackground(darkBlue);
+        mainPanel.setOpaque(true);
+
+        // Cabecera tipográfica del Menú Principal
+        JLabel title = new JLabel("=== BATTLESHIP MAIN MENU ===");
+        title.setAlignmentX(Component.CENTER_ALIGNMENT);
+        title.setFont(title.getFont().deriveFont(16.0f));
+        title.setForeground(Color.WHITE);
+        mainPanel.add(title);
+        mainPanel.add(Box.createRigidArea(new Dimension(0, 30)));
+
+        // Generación de botones de acción mediante el método de fábrica auxiliar
+        JButton btnLocalPvP = createStructuredButton("1. Humano vs Humano (Local)");
+        JButton btnLocalIA = createStructuredButton("2. Humano vs IA (Local)");
+        JButton btnHost = createStructuredButton("3. Crear Partida en Red (Host)");
+        JButton btnClient = createStructuredButton("4. Unirse a Partida en Red (Cliente)");
+        JButton exitBtn = createStructuredButton("5. Salir del Juego");
+
+        // Asignación de los escuchadores de eventos (ActionListener) vinculados a las callbacks
+        btnLocalPvP.addActionListener(e -> executeAction(onPvP));
+        btnLocalIA.addActionListener(e -> executeAction(onIA));
+        btnHost.addActionListener(e -> executeAction(onHost));
+        btnClient.addActionListener(e -> executeAction(onCliente));
+        
+        // Finalización directa del proceso de la Java Virtual Machine
+        exitBtn.addActionListener(e -> System.exit(0));
+
+        // Incorporación de los elementos con separadores verticales dinámicos (createRigidArea)
+        mainPanel.add(btnLocalPvP);
+        mainPanel.add(Box.createRigidArea(new Dimension(0, 15)));
+        mainPanel.add(btnLocalIA);
+        mainPanel.add(Box.createRigidArea(new Dimension(0, 15)));
+        mainPanel.add(btnHost);
+        mainPanel.add(Box.createRigidArea(new Dimension(0, 15)));
+        mainPanel.add(btnClient);
+        mainPanel.add(Box.createRigidArea(new Dimension(0, 15)));
+        mainPanel.add(exitBtn);
+
+        frame.add(mainPanel);
+    }
+
+    /**
+     * Muestra la ventana del Menú Principal en la pantalla.
+     */
+    public void show() {
+        frame.setVisible(true);
+    }
+
+    /**
+     * Cierra la ventana actual libera sus recursos y dispara la acción del modo de juego elegido.
+     * 
+     * @param action Callback funcional Runnable asociada al modo de juego.
+     */
+    private void executeAction(Runnable action) {
+        frame.dispose(); 
+        if (action != null) {
+            action.run();
+        }
+    }
+
+    /**
+     * Método auxiliar de maquetación (Factory Method) para aplicar dimensiones uniformes
+     * y alineación centralizada a la botonera.
+     * 
+     * @param text Etiqueta visible del botón.
+     * @return Instancia estandarizada de JButton.
+     */
+    private JButton createStructuredButton(String text) {
+        JButton button = new JButton(text);
+        button.setAlignmentX(Component.CENTER_ALIGNMENT);
+        button.setMaximumSize(new Dimension(300, 40));
+        return button;
+    }
+}

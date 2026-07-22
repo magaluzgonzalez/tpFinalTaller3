@@ -8,7 +8,8 @@ import java.util.List;
  * Solo contiene la información que la UI necesita dibujar.
  */
 public class GameSnapshot implements Serializable {
-    public final GameState state;
+	private static final long serialVersionUID = 1L;
+	public final GameState state;
     public final boolean isPlayer1Turn;
     
     // Lo que vemos del Jugador 1

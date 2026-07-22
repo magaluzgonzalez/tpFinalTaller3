@@ -1,0 +1,37 @@
+package com.tpfinal.batallanaval.model;
+
+import java.io.Serializable;
+
+public class Cell implements Serializable {
+   
+	private static final long serialVersionUID = 1L;
+	private final Position position;
+    private boolean isHit;
+
+    /**
+     * Constructor for a new cell.
+     * By default, a cell is not hit (isHit = false).
+     */
+    public Cell(Position position) {
+        this.position = position;
+        this.isHit = false; 
+    }
+
+    // Getters and Setters
+    
+    public Position getPosition() {
+        return position;
+    }
+
+    public boolean isHit() {
+        return isHit;
+    }
+
+    /**
+     * Sets the status of the cell.
+     * @param hit true if the cell has been struck by a shot.
+     */
+    public void setHit(boolean hit) {
+        this.isHit = hit;
+    }
+}

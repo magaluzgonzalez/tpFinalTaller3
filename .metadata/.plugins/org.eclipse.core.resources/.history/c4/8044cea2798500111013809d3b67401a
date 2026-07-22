@@ -1,0 +1,61 @@
+package com.tpfinal.batallanaval.UI;
+
+import javax.swing.JButton;
+import java.awt.Dimension;
+
+
+/**
+ * Componente gráfico personalizado que extiende de JButton.
+ * Representa una celda individual de la grilla de juego, manteniendo 
+ * sus coordenadas cartesianas (X, Y) y adaptando su estilo visual según su estado.
+ */
+public class CheckboxButton extends JButton {
+    
+    private static final long serialVersionUID = 1L;
+    private final int xCoord;
+    private final int yCoord;
+
+    /**
+     * Construye un botón de casilla en una posición específica de la grilla.
+     * 
+     * @param x Coordenada en el eje X (columna).
+     * @param y Coordenada en el eje Y (fila).
+     */
+    public CheckboxButton(int x, int y) {
+        this.xCoord = x; 
+        this.yCoord = y;
+        
+        // Estilizado inicial del componente (diseño plano y bordes delimitados)
+        setPreferredSize(new Dimension(35, 35));
+        setFocusPainted(false); 
+        setOpaque(true);
+        setBorder(javax.swing.BorderFactory.createLineBorder(java.awt.Color.GRAY, 1));
+        setStatus(StatusCell.EMPTY);
+    }
+
+    public int getXCoord() {
+        return xCoord;
+    }
+
+    public int getYCoord() {
+        return yCoord;
+    }
+
+    /**
+     * Setea el estado visual y funcional del casillero.
+     * Asigna el color correspondiente al estado y deshabilita la interacción
+     * si la casilla ya fue atacada previamente (Agua o Impacto).
+     * 
+     * @param status Estado lógico enviado desde el modelo (StatusCell).
+     */
+    public void setStatus(StatusCell status) {
+        setBackground(status.getColor());
+        
+        // Control de estado de interacción según las reglas de negocio
+        if (status == StatusCell.WATER || status == StatusCell.IMPACT) {
+            setEnabled(false);
+        } else {
+            setEnabled(true);
+        }
+    }
+}

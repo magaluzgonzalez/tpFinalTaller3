@@ -1,13 +1,15 @@
 package com.tpfinal.batallanaval.view;
 
 import javax.swing.*;
-import javax.swing.border.EmptyBorder;
 
 import com.tpfinal.batallanaval.UI.BoardPanel;
 import com.tpfinal.batallanaval.UI.StatusCell;
 
 import java.awt.*;
-import java.util.function.BiConsumer;
+
+ // Ventana principal de interfaz grafica para el desarrollo de la partida.
+ // Encapsula la maqueta visual compuesta por ambos tableros de juego (Mi Flota y Radar),
+ // la cabecera de control de sesion y la consola/bitácora de texto en tiempo real.
 
 public class SwingUI extends JFrame {
     private static final long serialVersionUID = 1L;
@@ -18,13 +20,20 @@ public class SwingUI extends JFrame {
     private JLabel lblMyFleetTitle;
     private JLabel lblRadarTitle;
 
-    // 🛠️ MODIFICADO: El constructor ahora recibe también la referencia de tu MainMenuUI
+   
+     // Construye e inicializa el marco de la ventana gráfica principal.
+     /* 
+     * @param title = titulo visible en la barra superior de la ventana.
+     * @param clickDelegate = delegado funcional para la captura de eventos de mouse.
+     * @param mainmenu = referencia al Menu Principal para posibilitar el retorno.
+     */
     public SwingUI(String title, int columns, int rows, MouseClickDelegate clickDelegate, MainMenuUI mainmenu) {
         setTitle(title);
-        initUI(columns, rows, clickDelegate, mainmenu); // <-- Se lo pasamos al init
+        initUI(columns, rows, clickDelegate, mainmenu);
     } 
 
-    // 🛠️ MODIFICADO: Agregamos el parámetro acá para poder usarlo adentro del botón
+     // Ensamblor de paneles organizandolos con BorderLaout y GridLayout.
+     
     private void initUI(int columns, int rows, MouseClickDelegate clickDelegate, MainMenuUI mainmenu) {
         setSize(900, 700); 
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -33,24 +42,20 @@ public class SwingUI extends JFrame {
         JPanel mainPanel = new JPanel(new BorderLayout(10, 10));
         mainPanel.setBackground(new Color(10, 25, 47));
 
-        // =========================================================================
-        // 🛠️ ¡BOTÓN DE VOLVER AL MENÚ ACTUALIZADO!
-        // =========================================================================
+        //Cabecera Norte: retorno al menu principal
         JButton backBtn = new JButton("🚪 Abandonar Partida y Volver al Menú");
         backBtn.setFont(new Font("SansSerif", Font.BOLD, 12));
         backBtn.setBackground(new Color(200, 50, 50)); 
         backBtn.setForeground(Color.WHITE);
         backBtn.setFocusPainted(false);
 
-        // 🔌 ENGANCHE: Ahora le pasamos "this" (la ventana de la partida) y "menuPrincipal" (tu menú original)
         backBtn.addActionListener(e -> {
             OptionManager.backToMainMenu(this, mainmenu);
         });
 
         mainPanel.add(backBtn, BorderLayout.NORTH);
-        // =========================================================================
 
-        // Terminal bitácora (Idéntica)
+        //Zona Sur: Terminal de texto en formato JTextArea dentro de un JScrollPane
         terminalOutput = new JTextArea();
         terminalOutput.setEditable(false);  
         terminalOutput.setBackground(Color.WHITE); 
@@ -61,7 +66,7 @@ public class SwingUI extends JFrame {
         scrollPane.setPreferredSize(new Dimension(850, 200)); 
         mainPanel.add(scrollPane, BorderLayout.SOUTH); 
 
-        // Contenedor de tableros (Idéntico)
+        //Zona Central: Contenedor doble de tableros organizados en 1 fila y 2 columnas
         JPanel dashboardContainerPanel = new JPanel(new GridLayout(1, 2, 20, 0));
         
         panelMyFleet = new BoardPanel(columns, rows, true, (btn, isLeft) -> {
@@ -84,31 +89,57 @@ public class SwingUI extends JFrame {
         setVisible(true);
     } 
 
+    
+     // Metodo auxiliar para empaquetar un tablero individual con su respectiva etiqueta de titulo.
+    
     private JPanel createContainerWithTitle(JLabel labelTitle, BoardPanel board) {
-        JPanel contrainer = new JPanel(new BorderLayout(5, 5));
-        contrainer.setOpaque(true);
-        contrainer.setBackground(new Color(10, 25, 47));
+        JPanel container = new JPanel(new BorderLayout(5, 5));
+        container.setOpaque(true);
+        container.setBackground(new Color(10, 25, 47));
         labelTitle.setFont(new Font("SansSerif", Font.BOLD, 12));
         labelTitle.setForeground(Color.WHITE); 
-        contrainer.add(labelTitle, BorderLayout.NORTH);
-        contrainer.add(board, BorderLayout.CENTER);
-        return contrainer;
+        container.add(labelTitle, BorderLayout.NORTH);
+        container.add(board, BorderLayout.CENTER);
+        return container;
     }
 
+    // Modifica el texto informativo de los títulos superiores de ambos tableros.
+     
     public void updateTitles(String titleFleet, String titleRadar) {
         lblMyFleetTitle.setText(titleFleet);
         lblRadarTitle.setText(titleRadar);
     }
 
-    public void clearScreen() { terminalOutput.setText(""); }
+    
+    // Limpia todo el contenido del área de texto de la bitácora.
+     
+    public void clearScreen() { 
+        terminalOutput.setText(""); 
+    }
+
+    // Imprime una línea de texto en la bitácora desplazando automáticamente el scroll hacia el final.
+     
     public void printLine(String text) { 
         terminalOutput.append(text + "\n"); 
         terminalOutput.setCaretPosition(terminalOutput.getDocument().getLength());
     }
     
-    public void updateMyFleetCell(int x, int y, StatusCell status) { panelMyFleet.updateCell(x, y, status); }
-    public void updateRadarGrid(int x, int y, StatusCell status) { panelRadar.updateCell(x, y, status); }
+    // Actualiza una celda específica del tablero de la flota propia.
+     
+    public void updateMyFleetCell(int x, int y, StatusCell status) { 
+        panelMyFleet.updateCell(x, y, status); 
+    }
 
+    // Actualiza una celda específica del tablero de radar/ataque.
+    
+    public void updateRadarGrid(int x, int y, StatusCell status) { 
+        panelRadar.updateCell(x, y, status); 
+    }
+
+    
+    //Interfaz funcional interna para delegar la recepción de clics hacia los adaptadores.
+     
+    @FunctionalInterface
     public interface MouseClickDelegate {
         void onGridClicked(int x, int y, boolean isMyFleet, boolean isLeftClick);
     }

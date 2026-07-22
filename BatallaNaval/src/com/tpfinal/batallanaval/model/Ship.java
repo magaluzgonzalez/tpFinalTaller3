@@ -5,7 +5,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class Ship implements Serializable {
-    private final String name;
+	private static final long serialVersionUID = 1L;
+	private final String name;
     private final int length;
     private final List<Cell> parts;
     private final Direction direction;
