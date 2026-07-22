@@ -45,7 +45,7 @@ public class GraphicUI implements GameListener {
         this.perspectiveManager = new PerspectiveManager(config, fixedPerspectiveP1);
         this.consoleUI = new ConsoleUI(controller, config, fixedPerspectiveP1, this.graphicView);
     }
-
+    
     
      // Captura y valida los eventos de clic provenientes del tablero grafico.
      // Mapea las coordenadas (X, Y) y delega la ejecucion de la jugada al controlador.
@@ -120,7 +120,7 @@ public class GraphicUI implements GameListener {
             String winner = snapshot.isPlayer1Turn ? "Ganador: JUGADOR 1" : "Ganador: JUGADOR 2";
             
             SwingUtilities.invokeLater(() -> {
-               OptionManager.showGameOver(graphicView, winner, mainMenu);
+               ExitMenuUI.showGameOver(graphicView, winner, mainMenu);
             });
             return;
         }
@@ -194,7 +194,7 @@ public class GraphicUI implements GameListener {
             String cleanMessage = errorMessage.substring(12).trim(); 
             
             SwingUtilities.invokeLater(() -> {
-                OptionManager.showGameOver(
+                ExitMenuUI.showGameOver(
                     this.graphicView, 
                     "❌ " + cleanMessage, 
                     this.mainMenu

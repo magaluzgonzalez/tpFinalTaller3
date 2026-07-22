@@ -9,15 +9,15 @@ import java.io.ObjectOutputStream;
 import java.net.Socket;
 
 public class NetworkClientController implements PlayerController {
-    private ObjectOutputStream salida;
-    private ObjectInputStream entrada;
+    private ObjectOutputStream output;
+    private ObjectInputStream input;
     private GameListener ui; // Quien sea que dibuje la pantalla (Consola o Gráfica)
 
     public NetworkClientController(String ip, int port) {
         try (
         	Socket socket = new Socket(ip, port)) { 
-            salida = new ObjectOutputStream(socket.getOutputStream());
-            entrada = new ObjectInputStream(socket.getInputStream());
+            output = new ObjectOutputStream(socket.getOutputStream());
+            input = new ObjectInputStream(socket.getInputStream());
             System.out.println("[RED] ¡Conectado al Host exitosamente!");
         } catch (Exception e) {
             System.out.println("[RED] No se pudo conectar al Host en " + ip + ":" + port);
@@ -28,20 +28,20 @@ public class NetworkClientController implements PlayerController {
     // Le pasamos la UI para que el hilo de red sepa a quién avisarle cuando llegan datos
     public void setUI(GameListener ui) {
         this.ui = ui;
-        iniciarEscucha();
+        startListening();
     }
 
-    private void iniciarEscucha() {
+    private void startListening() {
         new Thread(() -> {
             try {
             	while (true) {
-            	    Object recibido = entrada.readObject();
+            	    Object received = input.readObject();
             	    
-            	    if (recibido instanceof GameSnapshot && ui != null) {
-            	        ui.onGameStateChanged((GameSnapshot) recibido);
+            	    if (received instanceof GameSnapshot && ui != null) {
+            	        ui.onGameStateChanged((GameSnapshot) received);
             	    } 
-            	    else if (recibido instanceof String && ui != null) {
-            	        String msg = (String) recibido;
+            	    else if (received instanceof String && ui != null) {
+            	        String msg = (String) received;
             	        if (msg.startsWith("ERROR:")) {
             	            ui.onError(msg.substring(6));
             	        } 
@@ -50,10 +50,10 @@ public class NetworkClientController implements PlayerController {
             	            ui.onShipPlaced(null, rem); // Desencadena el cartel de barco colocado
             	        }
             	        else if (msg.startsWith("SHOT_FIRED ")) {
-            	            String[] p = msg.split(" ");
-            	            Position pos = new Position(Integer.parseInt(p[1]), Integer.parseInt(p[2]));
-            	            ShotResult res = ShotResult.valueOf(p[3]);
-            	            boolean wasP1 = Boolean.parseBoolean(p[4]);
+            	            String[] posStr = msg.split(" ");
+            	            Position pos = new Position(Integer.parseInt(posStr[1]), Integer.parseInt(posStr[2]));
+            	            ShotResult res = ShotResult.valueOf(posStr[3]);
+            	            boolean wasP1 = Boolean.parseBoolean(posStr[4]);
             	            ui.onShotFired(pos, res, wasP1); // Desencadena el cartel de impacto/agua remoto
             	        }
             	    }
@@ -70,14 +70,14 @@ public class NetworkClientController implements PlayerController {
     @Override
     public void attemptPlaceShip(int x, int y, Direction dir) {
         try {
-            salida.writeObject("PLACE " + x + " " + y + " " + dir.name());
+            output.writeObject("PLACE " + x + " " + y + " " + dir.name());
         } catch (Exception e) {}
     }
 
     @Override
     public void fireShot(int x, int y) {
         try {
-            salida.writeObject("SHOT " + x + " " + y);
+            output.writeObject("SHOT " + x + " " + y);
         } catch (Exception e) {}
     }
 }

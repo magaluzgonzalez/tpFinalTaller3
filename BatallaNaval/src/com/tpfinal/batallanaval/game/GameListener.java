@@ -6,7 +6,7 @@ import com.tpfinal.batallanaval.model.Ship;
 import com.tpfinal.batallanaval.model.ShotResult;
 
 public interface GameListener {
-    // El renderizado general (el que ya tenías)
+    // El renderizado general
     void onGameStateChanged(GameSnapshot snapshot);
 
     // --- NUEVOS EVENTOS ESPECÍFICOS ---

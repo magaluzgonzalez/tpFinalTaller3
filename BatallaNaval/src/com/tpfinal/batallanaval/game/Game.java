@@ -11,7 +11,7 @@ public class Game {
     private final Player player2;
     
     private boolean isPlayer1Turn; 
-    private GameState state; // <-- Reemplazamos el boolean isFinished por esto
+    private GameState state;
     private final List<GameListener> listeners = new ArrayList<>();
 
     public Game(GameConfig config, String nameP1, String nameP2) {
@@ -20,7 +20,7 @@ public class Game {
         this.player2 = new Player(nameP2);
         this.isPlayer1Turn = true;
         
-        // ¡El juego siempre arranca en la fase de colocación!
+        // El juego siempre arranca en la fase de colocación
         this.state = GameState.PLACING_SHIPS; 
     }
     

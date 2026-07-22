@@ -90,7 +90,7 @@ public class MainMenuUI {
 
     
     // Cierra la ventana actual libera sus recursos y dispara la acción del modo de juego elegido. 
-    // @param action Callback funcional Runnable asociada al modo de juego.
+    // @param action = Callback funcional Runnable asociada al modo de juego.
      
     private void executeAction(Runnable action) {
         frame.dispose(); 

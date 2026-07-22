@@ -73,4 +73,7 @@
 	<section name="RenameInformationPopup">
 		<item key="snap_position" value="2"/>
 	</section>
+	<section name="SelfEncapsulateFieldWizard">
+		<item key="GenerateJavadoc" value="false"/>
+	</section>
 </section>

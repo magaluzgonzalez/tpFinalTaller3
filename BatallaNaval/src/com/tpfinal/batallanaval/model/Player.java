@@ -64,10 +64,10 @@ public class Player {
     }
     
     public boolean hasAlreadyBeenShot(Position pos) {
-        // 1. ¿Ya disparamos ahí y fue agua?
+        // 1. Ya disparamos ahí y fue agua?
         if (missedShots.contains(pos)) return true;
         
-        // 2. ¿Ya disparamos ahí y le dimos a un barco?
+        // 2. Ya disparamos ahí y le dimos a un barco?
         for (Ship ship : ships) {
             for (Cell part : ship.getParts()) {
                 if (part.getPosition().equals(pos) && part.isHit()) {

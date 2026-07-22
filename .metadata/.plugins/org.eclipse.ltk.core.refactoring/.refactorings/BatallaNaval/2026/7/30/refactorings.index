@@ -1,1 +1,15 @@
 1784661516539	Encapsulate field 'controller, ...'
+1784752614650	Rename method 'iniciarEscucha'
+1784752666484	Move compilation unit
+1784752684893	Move compilation unit
+1784752996654	Rename type 'OptionManager'
+1784753576804	Rename local variable 'salida'
+1784753590697	Rename local variable 'entrada'
+1784753606649	Rename local variable 'comando'
+1784753618181	Rename local variable 'commnad'
+1784753632489	Rename local variable 'partes'
+1784753652742	Rename local variable 'partes'
+1784753691757	Rename local variable 'recibido'
+1784753749554	Rename local variable 'p'
+1784753778845	Rename field 'salida'
+1784753788570	Rename field 'entrada'

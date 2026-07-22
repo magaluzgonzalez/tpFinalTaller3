@@ -50,7 +50,7 @@ public class SwingUI extends JFrame {
         backBtn.setFocusPainted(false);
 
         backBtn.addActionListener(e -> {
-            OptionManager.backToMainMenu(this, mainmenu);
+            ExitMenuUI.backToMainMenu(this, mainmenu);
         });
 
         mainPanel.add(backBtn, BorderLayout.NORTH);

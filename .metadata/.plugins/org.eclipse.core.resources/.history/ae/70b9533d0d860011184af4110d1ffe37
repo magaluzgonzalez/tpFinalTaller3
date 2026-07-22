@@ -1,0 +1,116 @@
+package com.tpfinal.batallanaval;
+
+import com.tpfinal.batallanaval.controller.*;
+import com.tpfinal.batallanaval.game.Game;
+import com.tpfinal.batallanaval.model.GameConfig;
+import com.tpfinal.batallanaval.model.PlayerController;
+import com.tpfinal.batallanaval.network.NetworkClientController;
+import com.tpfinal.batallanaval.network.NetworkServer;
+import com.tpfinal.batallanaval.view.GraphicUI;
+import com.tpfinal.batallanaval.view.MainMenuUI;
+
+/**
+ * Punto de entrada principal de Batalla Naval.
+ * Implementa el patrón Factory/Orquestador para inicializar las distintas
+ * modalidades de juego (Local, VS IA y Cliente/Servidor por Red).
+ */
+public class App {
+    
+    // Referencia al menú principal para gestionar la navegación entre pantallas
+    private static MainMenuUI menuActual;
+
+    public static void main(String[] args) {
+        // Inicialización de la interfaz en el hilo de eventos de Swing (Event Dispatch Thread)
+        javax.swing.SwingUtilities.invokeLater(() -> {
+            createAndShowMenu();
+        });
+    }
+
+    
+     //Instancia el menu principal asociando las callbacks de seleccion a los inicializadores de juego.
+  
+    private static void createAndShowMenu() {
+        menuActual = new MainMenuUI(
+            App::startLocalPvPMode, 
+            App::startLocalAIMode, 
+            App::startHostMode,
+            App::startClientMode
+        );
+        menuActual.show();
+    }
+
+    // --- INICIALIZADORES DE MODALIDADES DE JUEGO ---
+
+    
+      //Inicia el modo de juego Local PvP (Hotseat).
+      //Ambos jugadores comparten la misma pantalla intercalando turnos.
+     
+
+    private static void startLocalPvPMode() {
+        GameConfig config = GameConfig.createDefault();
+        Game game = new Game(config, "Jugador 1", "Jugador 2");
+        PlayerController hotseatController = new HotseatController(game);
+        
+        GraphicUI graphicUI = new GraphicUI(hotseatController, config, null, menuActual);
+        
+        // Suscripción de la UI al motor del juego (Patrón Observer)
+        game.addListener(graphicUI);
+        game.notifyListeners();
+    } 
+
+    
+      //Inicia el modo de juego contra la IA.
+      //Vincula tanto al jugador humano como al bot autónomo al mismo motor de juego.
+     
+    private static void startLocalAIMode() {
+        GameConfig config = GameConfig.createDefault();
+        Game game = new Game(config, "Humano", "Bot");
+        PlayerController p1Controller = new LocalController(game, true);
+        AIController bot = new AIController(game, false);
+
+        GraphicUI graphicUI = new GraphicUI(p1Controller, config, true, menuActual);
+
+        // Registro de observadores: la UI y el algoritmo de la IA escuchan los cambios de estado
+        game.addListener(graphicUI);
+        game.addListener(bot);
+        game.notifyListeners();
+    }
+
+    
+      //Inicia el juego en modo Servidor (Host) para partidas multijugador por red.
+      //Levanta el socket de escucha en segundo plano y asume la perspectiva del Jugador 1.
+     
+    private static void startHostMode() {
+        System.out.println("Iniciando Servidor Battleship...");
+        GameConfig config = GameConfig.createDefault();
+        Game game = new Game(config, "Host (Vos)", "Cliente (Remoto)");
+        
+        PlayerController localController = new LocalController(game, true);
+        GraphicUI graphicUI = new GraphicUI(localController, config, true, menuActual);
+        
+        game.addListener(graphicUI);
+        
+        // Despliegue del hilo del servidor socket en el puerto asignado (8080)
+        NetworkServer server = new NetworkServer(game, 8080);
+        server.startListeningInBackground();
+        
+        game.notifyListeners(); 
+    }
+
+    
+      //Inicia el juego en modo Cliente para conectarse a un Servidor remoto.
+      //Delega el control de la partida al controlador de red.
+     
+    private static void startClientMode() {
+        System.out.println("Conectando al Servidor...");
+        GameConfig config = GameConfig.createDefault(); 
+        
+        // Conexión por socket a la dirección Loopback (127.0.0.1)
+        NetworkClientController netController = new NetworkClientController("127.0.0.1", 8080);
+        
+        // La vista del cliente utiliza una perspectiva fija configurada en 'false' (Jugador 2)
+        GraphicUI graphicUI = new GraphicUI(netController, config, false, menuActual);
+        
+        netController.setUI(graphicUI);
+    }
+}
